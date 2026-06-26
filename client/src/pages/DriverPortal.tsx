@@ -4,6 +4,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import Nav from "@/components/Nav";
 import { useToast } from "@/hooks/use-toast";
 import DriverProfileEditor from "@/components/DriverProfileEditor";
+import DriverLogin from "@/components/DriverLogin";
 import type { Booking } from "@shared/schema";
 
 const BACKEND = "https://backend-production-507b.up.railway.app";
@@ -143,6 +144,7 @@ function MessageThread({ booking, onClose }: { booking: Booking; onClose: () => 
 
 export default function DriverPortal() {
   const { toast } = useToast();
+  const [authed, setAuthed] = useState(false);
   const [filter, setFilter] = useState<string>("all");
   const [showPaySettings, setShowPaySettings] = useState(false);
   const [payForm, setPayForm] = useState({ cashapp: "", venmo: "", paypal: "" });
@@ -156,15 +158,19 @@ export default function DriverPortal() {
   // Live polling — refresh every 8s
   const { data: bookings = [], isLoading } = useQuery<Booking[]>({
     queryKey: ["/api/bookings"],
-    refetchInterval: 8000,
+    refetchInterval: authed ? 8000 : false,
+    enabled: authed,
   });
 
   const { data: settings = {} } = useQuery<Record<string, string>>({
     queryKey: ["/api/settings"],
+    enabled: authed,
     onSuccess: (data: Record<string, string>) => {
       setPayForm({ cashapp: data.cashapp || "", venmo: data.venmo || "", paypal: data.paypal || "" });
     },
   });
+
+  if (!authed) return <DriverLogin onAuth={() => setAuthed(true)} />;
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: number; status: string }) => {
