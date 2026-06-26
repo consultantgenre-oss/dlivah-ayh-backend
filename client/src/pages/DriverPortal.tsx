@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import Nav from "@/components/Nav";
@@ -10,37 +10,149 @@ const STATUS_FLOW: Record<string, string> = {
   confirmed: "in_progress",
   in_progress: "completed",
 };
-
 const STATUS_LABELS: Record<string, string> = {
   pending: "Accept Job",
   confirmed: "Start Job",
   in_progress: "Complete Job",
 };
+const TYPE_ICONS: Record<string, string> = { ride: "🚗", move: "📦", delivery: "🔁" };
 
-const TYPE_ICONS: Record<string, string> = {
-  ride: "🚗",
-  move: "📦",
-  delivery: "🔁",
-};
+type Msg = { id: number; bookingId: number; sender: string; text: string; sentAt: string };
+
+function MessageThread({ booking, onClose }: { booking: Booking; onClose: () => void }) {
+  const [input, setInput] = useState("");
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const { data: messages = [], refetch } = useQuery<Msg[]>({
+    queryKey: [`/api/bookings/${booking.id}/messages`],
+    refetchInterval: 4000,
+  });
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const sendMsg = useMutation({
+    mutationFn: async (text: string) => {
+      const res = await apiRequest("POST", `/api/bookings/${booking.id}/messages`, { sender: "driver", text });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/bookings/${booking.id}/messages`] });
+      setInput("");
+    },
+  });
+
+  const handleSend = () => {
+    const t = input.trim();
+    if (!t) return;
+    sendMsg.mutate(t);
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 200,
+      background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)",
+      display: "flex", alignItems: "flex-end", justifyContent: "center",
+    }}>
+      <div style={{
+        width: "100%", maxWidth: "560px",
+        background: "var(--surface-2)",
+        border: "1px solid var(--border-color)",
+        borderRadius: "1.2rem 1.2rem 0 0",
+        maxHeight: "80vh",
+        display: "flex", flexDirection: "column",
+      }}>
+        {/* Header */}
+        <div style={{ padding: "1rem 1.25rem", borderBottom: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: "0.95rem" }}>{booking.customerName}</p>
+            <p style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
+              {booking.bookingType} · {booking.scheduledDate} {booking.scheduledTime}
+            </p>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: "1.4rem", cursor: "pointer", lineHeight: 1 }}>✕</button>
+        </div>
+
+        {/* Messages */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.25rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          {messages.length === 0 && (
+            <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", textAlign: "center", marginTop: "2rem" }}>
+              No messages yet. Start the conversation.
+            </p>
+          )}
+          {messages.map(m => {
+            const isDriver = m.sender === "driver";
+            return (
+              <div key={m.id} style={{ display: "flex", justifyContent: isDriver ? "flex-end" : "flex-start" }}>
+                <div style={{
+                  maxWidth: "75%", padding: "0.6rem 0.9rem",
+                  borderRadius: isDriver ? "1rem 1rem 0.2rem 1rem" : "1rem 1rem 1rem 0.2rem",
+                  background: isDriver ? "var(--green)" : "var(--surface-3)",
+                  color: isDriver ? "#000" : "var(--text)",
+                  fontSize: "0.88rem", lineHeight: 1.5,
+                }}>
+                  <p style={{ margin: 0 }}>{m.text}</p>
+                  <p style={{ margin: "0.25rem 0 0", fontSize: "0.7rem", opacity: 0.6, textAlign: "right" }}>
+                    {new Date(m.sentAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input */}
+        <div style={{ padding: "0.75rem 1rem", borderTop: "1px solid var(--border-color)", display: "flex", gap: "0.5rem" }}>
+          <input
+            style={{
+              flex: 1, background: "var(--surface-3)", border: "1px solid var(--border-color)",
+              borderRadius: "0.6rem", padding: "0.6rem 0.9rem",
+              color: "var(--text)", fontSize: "0.9rem", outline: "none",
+              fontFamily: "'Satoshi', sans-serif",
+            }}
+            placeholder="Message customer..."
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+          />
+          <button
+            onClick={handleSend}
+            disabled={!input.trim() || sendMsg.isPending}
+            style={{
+              padding: "0.6rem 1rem", borderRadius: "0.6rem",
+              background: "var(--green)", color: "#000",
+              border: "none", fontWeight: 700, fontSize: "0.88rem",
+              cursor: input.trim() ? "pointer" : "not-allowed",
+              opacity: input.trim() ? 1 : 0.4,
+              transition: "opacity 0.15s",
+              fontFamily: "'Satoshi', sans-serif",
+            }}
+          >Send</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function DriverPortal() {
   const { toast } = useToast();
   const [filter, setFilter] = useState<string>("all");
   const [showPaySettings, setShowPaySettings] = useState(false);
   const [payForm, setPayForm] = useState({ cashapp: "", venmo: "", paypal: "" });
+  const [activeMsg, setActiveMsg] = useState<Booking | null>(null);
 
+  // Live polling — refresh every 8s
   const { data: bookings = [], isLoading } = useQuery<Booking[]>({
     queryKey: ["/api/bookings"],
+    refetchInterval: 8000,
   });
 
   const { data: settings = {} } = useQuery<Record<string, string>>({
     queryKey: ["/api/settings"],
     onSuccess: (data: Record<string, string>) => {
-      setPayForm({
-        cashapp: data.cashapp || "",
-        venmo: data.venmo || "",
-        paypal: data.paypal || "",
-      });
+      setPayForm({ cashapp: data.cashapp || "", venmo: data.venmo || "", paypal: data.paypal || "" });
     },
   });
 
@@ -49,9 +161,7 @@ export default function DriverPortal() {
       const res = await apiRequest("PATCH", `/api/bookings/${id}/status`, { status });
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/bookings"] }),
     onError: () => toast({ title: "Update failed", variant: "destructive" }),
   });
 
@@ -60,9 +170,7 @@ export default function DriverPortal() {
       const res = await apiRequest("POST", "/api/settings", { key, value });
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/settings"] }),
   });
 
   const savePaySettings = async () => {
@@ -75,10 +183,7 @@ export default function DriverPortal() {
     setShowPaySettings(false);
   };
 
-  const filtered = bookings.filter(b =>
-    filter === "all" ? true : b.status === filter
-  );
-
+  const filtered = bookings.filter(b => filter === "all" ? true : b.status === filter);
   const counts = {
     all: bookings.length,
     pending: bookings.filter(b => b.status === "pending").length,
@@ -90,6 +195,8 @@ export default function DriverPortal() {
   return (
     <div style={{ minHeight: "100dvh" }}>
       <Nav />
+      {activeMsg && <MessageThread booking={activeMsg} onClose={() => setActiveMsg(null)} />}
+
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "2rem 1.5rem 5rem" }}>
 
         {/* Header */}
@@ -97,7 +204,9 @@ export default function DriverPortal() {
           <div>
             <span className="badge-purple" style={{ marginBottom: "0.5rem", display: "inline-block" }}>DOF · Driver Ops</span>
             <h1 style={{ fontSize: "1.8rem", letterSpacing: "-0.02em" }}>Driver Dashboard</h1>
-            <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginTop: "0.25rem" }}>All incoming bookings — manage your jobs here.</p>
+            <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginTop: "0.25rem" }}>
+              Live jobs — updates every 8 seconds.
+            </p>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "flex-end" }}>
             <div className="card" style={{ textAlign: "center", minWidth: "120px" }}>
@@ -109,10 +218,7 @@ export default function DriverPortal() {
             <button
               className="btn-outline"
               style={{ fontSize: "0.8rem", padding: "0.4rem 0.9rem", borderColor: "var(--purple)", color: "var(--purple)" }}
-              onClick={() => {
-                setPayForm({ cashapp: settings.cashapp || "", venmo: settings.venmo || "", paypal: settings.paypal || "" });
-                setShowPaySettings(s => !s);
-              }}
+              onClick={() => { setPayForm({ cashapp: settings.cashapp || "", venmo: settings.venmo || "", paypal: settings.paypal || "" }); setShowPaySettings(s => !s); }}
             >
               💳 Payment Settings
             </button>
@@ -125,9 +231,7 @@ export default function DriverPortal() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
               <div>
                 <p style={{ fontWeight: 700, fontSize: "0.95rem" }}>Payment Handles</p>
-                <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginTop: "0.2rem" }}>
-                  Customers see these after booking so they can pay you directly.
-                </p>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginTop: "0.2rem" }}>Customers see these after booking so they can pay you directly.</p>
               </div>
               <button onClick={() => setShowPaySettings(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "1.2rem" }}>✕</button>
             </div>
@@ -148,18 +252,13 @@ export default function DriverPortal() {
                 </div>
               ))}
             </div>
-            <button
-              className="btn-purple"
-              style={{ width: "100%" }}
-              onClick={savePaySettings}
-              disabled={saveSetting.isPending}
-            >
+            <button className="btn-purple" style={{ width: "100%" }} onClick={savePaySettings} disabled={saveSetting.isPending}>
               {saveSetting.isPending ? "Saving..." : "Save Payment Settings"}
             </button>
           </div>
         )}
 
-        {/* Stats row */}
+        {/* Stats */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
           {[
             { label: "New Requests", value: counts.pending, color: "#f59e0b" },
@@ -174,31 +273,23 @@ export default function DriverPortal() {
           ))}
         </div>
 
-        {/* Filter tabs */}
+        {/* Filters */}
         <div style={{ display: "flex", gap: "0.4rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
           {["all", "pending", "confirmed", "in_progress", "completed"].map(f => (
-            <button
-              key={f}
-              data-testid={`filter-${f}`}
-              onClick={() => setFilter(f)}
-              style={{
-                padding: "0.4rem 0.9rem",
-                borderRadius: "999px",
-                border: `1px solid ${filter === f ? "var(--green)" : "var(--border-color)"}`,
-                background: filter === f ? "var(--green-glow)" : "transparent",
-                color: filter === f ? "var(--green)" : "var(--text-muted)",
-                fontSize: "0.8rem",
-                fontWeight: filter === f ? 700 : 400,
-                cursor: "pointer",
-                transition: "all 0.15s",
-              }}
-            >
+            <button key={f} onClick={() => setFilter(f)} style={{
+              padding: "0.4rem 0.9rem", borderRadius: "999px",
+              border: `1px solid ${filter === f ? "var(--green)" : "var(--border-color)"}`,
+              background: filter === f ? "var(--green-glow)" : "transparent",
+              color: filter === f ? "var(--green)" : "var(--text-muted)",
+              fontSize: "0.8rem", fontWeight: filter === f ? 700 : 400,
+              cursor: "pointer", transition: "all 0.15s",
+            }}>
               {f === "all" ? "All" : f.replace("_", " ")} ({counts[f as keyof typeof counts] ?? 0})
             </button>
           ))}
         </div>
 
-        {/* Bookings list */}
+        {/* Bookings */}
         {isLoading ? (
           <div style={{ textAlign: "center", padding: "4rem", color: "var(--text-muted)" }}>Loading jobs...</div>
         ) : filtered.length === 0 ? (
@@ -209,68 +300,86 @@ export default function DriverPortal() {
         ) : (
           <div style={{ display: "grid", gap: "0.75rem" }}>
             {[...filtered].reverse().map(b => (
-              <div
-                key={b.id}
-                className="card"
-                data-testid={`booking-card-${b.id}`}
-                style={{
-                  borderColor: b.status === "pending" ? "rgba(245,158,11,0.3)" :
-                    b.status === "in_progress" ? "rgba(168,85,247,0.3)" : "var(--border-color)",
-                }}
-              >
+              <div key={b.id} className="card" style={{
+                borderColor: b.status === "pending" ? "rgba(245,158,11,0.35)" :
+                  b.status === "in_progress" ? "rgba(168,85,247,0.35)" :
+                  b.status === "confirmed" ? "rgba(34,197,94,0.35)" : "var(--border-color)",
+              }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
                   {/* Left */}
                   <div style={{ flex: 1, minWidth: "220px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.6rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.6rem", flexWrap: "wrap" }}>
                       <span style={{ fontSize: "1.4rem" }}>{TYPE_ICONS[b.bookingType] || "📋"}</span>
                       <span style={{ fontWeight: 700, fontSize: "1rem" }}>
                         {b.bookingType.charAt(0).toUpperCase() + b.bookingType.slice(1)}
                       </span>
-                      <span className={`status-pill status-${b.status}`}>
+                      <span style={{
+                        padding: "0.2rem 0.6rem", borderRadius: "999px", fontSize: "0.72rem", fontWeight: 700,
+                        background: b.status === "pending" ? "rgba(245,158,11,0.15)" :
+                          b.status === "confirmed" ? "rgba(34,197,94,0.15)" :
+                          b.status === "in_progress" ? "rgba(168,85,247,0.15)" : "rgba(148,163,184,0.15)",
+                        color: b.status === "pending" ? "#f59e0b" :
+                          b.status === "confirmed" ? "var(--green)" :
+                          b.status === "in_progress" ? "var(--purple)" : "#94a3b8",
+                      }}>
                         {b.status.replace("_", " ")}
                       </span>
                     </div>
-                    <p style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: "0.25rem" }}>{b.customerName}</p>
+                    <p style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: "0.2rem" }}>{b.customerName}</p>
                     <p style={{ color: "var(--text-muted)", fontSize: "0.83rem", marginBottom: "0.5rem" }}>{b.customerPhone}</p>
                     <div style={{ display: "grid", gap: "0.3rem" }}>
                       <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.83rem" }}>
-                        <span style={{ color: "var(--green)", fontWeight: 600 }}>↑</span>
+                        <span style={{ color: "var(--green)", fontWeight: 700 }}>↑</span>
                         <span style={{ color: "var(--text-muted)" }}>{b.pickupAddress}</span>
                       </div>
                       <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.83rem" }}>
-                        <span style={{ color: "var(--purple)", fontWeight: 600 }}>↓</span>
+                        <span style={{ color: "var(--purple)", fontWeight: 700 }}>↓</span>
                         <span style={{ color: "var(--text-muted)" }}>{b.dropoffAddress}</span>
                       </div>
                     </div>
                     {b.notes && (
-                      <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.5rem", fontStyle: "italic" }}>
-                        "{b.notes}"
-                      </p>
+                      <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.5rem", fontStyle: "italic" }}>"{b.notes}"</p>
                     )}
                   </div>
 
                   {/* Right */}
-                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.75rem" }}>
+                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.6rem" }}>
                     <div>
                       <p style={{ fontWeight: 700, fontSize: "0.9rem" }}>{b.scheduledDate}</p>
                       <p style={{ color: "var(--text-muted)", fontSize: "0.83rem" }}>{b.scheduledTime}</p>
                     </div>
+
+                    {/* Message button */}
+                    <button
+                      onClick={() => setActiveMsg(b)}
+                      style={{
+                        padding: "0.4rem 0.85rem", borderRadius: "0.5rem",
+                        border: "1px solid var(--border-color)",
+                        background: "var(--surface-3)", color: "var(--text-muted)",
+                        fontSize: "0.8rem", cursor: "pointer", transition: "all 0.15s",
+                        display: "flex", alignItems: "center", gap: "0.3rem",
+                      }}
+                      onMouseOver={e => { e.currentTarget.style.borderColor = "var(--green)"; e.currentTarget.style.color = "var(--green)"; }}
+                      onMouseOut={e => { e.currentTarget.style.borderColor = "var(--border-color)"; e.currentTarget.style.color = "var(--text-muted)"; }}
+                    >
+                      💬 Message
+                    </button>
+
+                    {/* Status action */}
                     {STATUS_FLOW[b.status] && (
                       <button
                         className={b.status === "pending" ? "btn-green" : "btn-purple"}
-                        style={{ fontSize: "0.82rem", padding: "0.45rem 1rem", opacity: updateStatus.isPending ? 0.5 : 1 }}
+                        style={{ fontSize: "0.82rem", padding: "0.45rem 1rem", opacity: updateStatus.isPending ? 0.5 : 1, width: "100%" }}
                         disabled={updateStatus.isPending}
-                        data-testid={`button-action-${b.id}`}
                         onClick={() => updateStatus.mutate({ id: b.id, status: STATUS_FLOW[b.status] })}
                       >
                         {STATUS_LABELS[b.status]}
                       </button>
                     )}
+
                     {b.status !== "completed" && b.status !== "cancelled" && (
                       <button
-                        className="btn-outline"
-                        style={{ fontSize: "0.78rem", padding: "0.35rem 0.75rem", borderColor: "#ef4444", color: "#ef4444" }}
-                        data-testid={`button-cancel-${b.id}`}
+                        style={{ fontSize: "0.78rem", padding: "0.35rem 0.75rem", borderRadius: "0.4rem", border: "1px solid #ef4444", color: "#ef4444", background: "transparent", cursor: "pointer", width: "100%" }}
                         onClick={() => updateStatus.mutate({ id: b.id, status: "cancelled" })}
                       >
                         Cancel

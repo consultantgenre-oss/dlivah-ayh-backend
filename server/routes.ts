@@ -56,6 +56,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(members);
   });
 
+  // ── Messages ─────────────────────────────────────────────────────────
+  app.get("/api/bookings/:id/messages", (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    res.json(storage.getMessages(id));
+  });
+
+  app.post("/api/bookings/:id/messages", (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    const { sender, text } = z.object({ sender: z.string(), text: z.string().min(1) }).parse(req.body);
+    const msg = storage.sendMessage(id, sender, text);
+    res.status(201).json(msg);
+  });
+
   // ── Settings ──────────────────────────────────────────────────────────
   app.get("/api/settings", (_req, res) => {
     res.json(storage.getAllSettings());

@@ -9,6 +9,7 @@ import DriverPortal from "@/pages/DriverPortal";
 import Foundation from "@/pages/Foundation";
 import Join from "@/pages/Join";
 import Pricing from "@/pages/Pricing";
+import CustomerThread from "@/pages/CustomerThread";
 import NotFound from "@/pages/not-found";
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
           <Route path="/pricing" component={Pricing} />
           <Route path="/driver" component={DriverPortal} />
           <Route path="/foundation" component={Foundation} />
+          <Route path="/messages/:id" component={CustomerThread} />
           <Route component={NotFound} />
         </Switch>
       </Router>

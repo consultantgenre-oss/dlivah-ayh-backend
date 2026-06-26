@@ -24,6 +24,13 @@ sqlite.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    booking_id INTEGER NOT NULL,
+    sender TEXT NOT NULL,
+    text TEXT NOT NULL,
+    sent_at TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS bookings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     booking_type TEXT NOT NULL,
@@ -57,6 +64,10 @@ export interface IStorage {
   getSetting(key: string): string | null;
   setSetting(key: string, value: string): void;
   getAllSettings(): Record<string, string>;
+
+  // Messages
+  getMessages(bookingId: number): { id: number; bookingId: number; sender: string; text: string; sentAt: string }[];
+  sendMessage(bookingId: number, sender: string, text: string): { id: number; bookingId: number; sender: string; text: string; sentAt: string };
 }
 
 export const storage: IStorage = {
@@ -91,5 +102,14 @@ export const storage: IStorage = {
   getAllSettings() {
     const rows = sqlite.prepare("SELECT key, value FROM settings").all() as { key: string; value: string }[];
     return Object.fromEntries(rows.map(r => [r.key, r.value]));
+  },
+  getMessages(bookingId) {
+    const rows = sqlite.prepare("SELECT id, booking_id, sender, text, sent_at FROM messages WHERE booking_id = ? ORDER BY id ASC").all(bookingId) as any[];
+    return rows.map(r => ({ id: r.id, bookingId: r.booking_id, sender: r.sender, text: r.text, sentAt: r.sent_at }));
+  },
+  sendMessage(bookingId, sender, text) {
+    const sentAt = new Date().toISOString();
+    const result = sqlite.prepare("INSERT INTO messages (booking_id, sender, text, sent_at) VALUES (?, ?, ?, ?)").run(bookingId, sender, text, sentAt);
+    return { id: result.lastInsertRowid as number, bookingId, sender, text, sentAt };
   },
 };

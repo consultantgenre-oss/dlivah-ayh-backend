@@ -40,6 +40,7 @@ export default function Book() {
     notes: "",
   });
   const [confirmed, setConfirmed] = useState(false);
+  const [bookingId, setBookingId] = useState<number | null>(null);
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -52,8 +53,9 @@ export default function Book() {
       });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       setConfirmed(true);
+      setBookingId(data?.id || null);
     },
     onError: () => {
       toast({ title: "Something went wrong", description: "Please try again.", variant: "destructive" });
@@ -115,7 +117,21 @@ export default function Book() {
             </div>
           )}
 
-          <button className="btn-green" onClick={() => { setConfirmed(false); setStep(1); setForm({ bookingType: "", customerName: "", customerPhone: "", customerEmail: "", pickupAddress: "", dropoffAddress: "", scheduledDate: "", scheduledTime: "", notes: "" }); }}>
+          {bookingId && (
+            <a
+              href={`/#/messages/${bookingId}`}
+              style={{
+                display: "block", width: "100%", textAlign: "center",
+                padding: "0.8rem", borderRadius: "0.6rem", marginBottom: "0.75rem",
+                border: "1px solid var(--green)", color: "var(--green)",
+                fontWeight: 700, fontSize: "0.9rem", textDecoration: "none",
+                background: "rgba(34,197,94,0.08)",
+              }}
+            >
+              💬 Message Your Driver
+            </a>
+          )}
+          <button className="btn-green" style={{ width: "100%" }} onClick={() => { setConfirmed(false); setStep(1); setBookingId(null); setForm({ bookingType: "", customerName: "", customerPhone: "", customerEmail: "", pickupAddress: "", dropoffAddress: "", scheduledDate: "", scheduledTime: "", notes: "" }); }}>
             Book Another
           </button>
         </div>
