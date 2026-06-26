@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import Nav from "@/components/Nav";
 import { useToast } from "@/hooks/use-toast";
+import DriverProfileCard from "@/components/DriverProfileCard";
 
 const SERVICE_TYPES = [
   { id: "ride", label: "Ride", icon: "🚗", desc: "Pickup & drop-off anywhere", badge: "Quick" },
@@ -83,6 +84,8 @@ export default function Book() {
             We've got your {form.bookingType} request for <strong>{form.scheduledDate}</strong> at <strong>{form.scheduledTime}</strong>.
             We'll confirm shortly via text.
           </p>
+          <DriverProfileCard />
+
           <div className="card" style={{ marginBottom: "1.5rem", textAlign: "left" }}>
             <div style={{ display: "grid", gap: "0.75rem" }}>
               {[

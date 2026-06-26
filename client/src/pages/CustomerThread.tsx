@@ -3,6 +3,7 @@ import { useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import Nav from "@/components/Nav";
+import DriverProfileCard from "@/components/DriverProfileCard";
 import type { Booking } from "@shared/schema";
 
 type Msg = { id: number; bookingId: number; sender: string; text: string; sentAt: string };
@@ -57,6 +58,8 @@ export default function CustomerThread() {
     <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
       <Nav />
       <div style={{ maxWidth: "560px", width: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", padding: "1.5rem 1rem 0" }}>
+
+        <DriverProfileCard />
 
         {/* Booking info */}
         {booking && (

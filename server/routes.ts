@@ -3,6 +3,21 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { insertBookingSchema, insertMemberSchema } from "@shared/schema";
 import { z } from "zod";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+
+const uploadDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+const upload = multer({
+  dest: uploadDir,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Images only"));
+  },
+});
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // ── Bookings ──────────────────────────────────────────────────────────
@@ -54,6 +69,39 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/members/role/:role", (req, res) => {
     const members = storage.getMembersByRole(req.params.role);
     res.json(members);
+  });
+
+  // ── Driver Profile ─────────────────────────────────────────────────────
+  app.get("/api/driver/profile", (_req, res) => {
+    res.json(storage.getDriverProfile() || {});
+  });
+
+  app.post("/api/driver/profile", (req, res) => {
+    const data = z.object({
+      name: z.string().optional(),
+      bio: z.string().optional(),
+      phone: z.string().optional(),
+      email: z.string().optional(),
+      photoUrl: z.string().optional(),
+    }).parse(req.body);
+    storage.updateDriverProfile(data);
+    res.json(storage.getDriverProfile());
+  });
+
+  app.post("/api/driver/photo", upload.single("photo"), (req: any, res) => {
+    if (!req.file) return res.status(400).json({ error: "No file" });
+    const ext = path.extname(req.file.originalname) || ".jpg";
+    const newName = `driver-${Date.now()}${ext}`;
+    const newPath = path.join(uploadDir, newName);
+    fs.renameSync(req.file.path, newPath);
+    const url = `/uploads/${newName}`;
+    storage.updateDriverProfile({ photoUrl: url });
+    res.json({ url });
+  });
+
+  app.use("/uploads", (req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    next();
   });
 
   // ── Messages ─────────────────────────────────────────────────────────

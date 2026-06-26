@@ -24,6 +24,15 @@ sqlite.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS driver_profile (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    name TEXT,
+    bio TEXT,
+    phone TEXT,
+    email TEXT,
+    photo_url TEXT,
+    updated_at TEXT
+  );
   CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     booking_id INTEGER NOT NULL,
@@ -68,6 +77,10 @@ export interface IStorage {
   // Messages
   getMessages(bookingId: number): { id: number; bookingId: number; sender: string; text: string; sentAt: string }[];
   sendMessage(bookingId: number, sender: string, text: string): { id: number; bookingId: number; sender: string; text: string; sentAt: string };
+
+  // Driver Profile
+  getDriverProfile(): { name: string | null; bio: string | null; phone: string | null; email: string | null; photoUrl: string | null; updatedAt: string | null } | null;
+  updateDriverProfile(data: { name?: string; bio?: string; phone?: string; email?: string; photoUrl?: string }): void;
 }
 
 export const storage: IStorage = {
@@ -111,5 +124,24 @@ export const storage: IStorage = {
     const sentAt = new Date().toISOString();
     const result = sqlite.prepare("INSERT INTO messages (booking_id, sender, text, sent_at) VALUES (?, ?, ?, ?)").run(bookingId, sender, text, sentAt);
     return { id: result.lastInsertRowid as number, bookingId, sender, text, sentAt };
+  },
+  getDriverProfile() {
+    const row = sqlite.prepare("SELECT name, bio, phone, email, photo_url, updated_at FROM driver_profile WHERE id = 1").get() as any;
+    if (!row) return null;
+    return { name: row.name, bio: row.bio, phone: row.phone, email: row.email, photoUrl: row.photo_url, updatedAt: row.updated_at };
+  },
+  updateDriverProfile(data) {
+    const updatedAt = new Date().toISOString();
+    sqlite.prepare(`
+      INSERT INTO driver_profile (id, name, bio, phone, email, photo_url, updated_at)
+      VALUES (1, @name, @bio, @phone, @email, @photoUrl, @updatedAt)
+      ON CONFLICT(id) DO UPDATE SET
+        name = COALESCE(@name, name),
+        bio = COALESCE(@bio, bio),
+        phone = COALESCE(@phone, phone),
+        email = COALESCE(@email, email),
+        photo_url = COALESCE(@photoUrl, photo_url),
+        updated_at = @updatedAt
+    `).run({ name: data.name ?? null, bio: data.bio ?? null, phone: data.phone ?? null, email: data.email ?? null, photoUrl: data.photoUrl ?? null, updatedAt });
   },
 };

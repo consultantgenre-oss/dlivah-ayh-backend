@@ -4,6 +4,8 @@ import type { Request } from 'express';
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "node:http";
+import path from "path";
+import fs from "fs";
 
 const ALLOWED_ORIGINS = [
   "https://dlivah.live",
@@ -20,6 +22,11 @@ declare module "http" {
     rawBody: unknown;
   }
 }
+
+// Serve uploaded files
+const uploadsDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+app.use("/uploads", express.static(uploadsDir));
 
 // CORS
 app.use((req, res, next) => {

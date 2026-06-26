@@ -3,7 +3,12 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import Nav from "@/components/Nav";
 import { useToast } from "@/hooks/use-toast";
+import DriverProfileEditor from "@/components/DriverProfileEditor";
 import type { Booking } from "@shared/schema";
+
+const BACKEND = "https://backend-production-507b.up.railway.app";
+
+type Profile = { name?: string | null; bio?: string | null; phone?: string | null; email?: string | null; photoUrl?: string | null };
 
 const STATUS_FLOW: Record<string, string> = {
   pending: "confirmed",
@@ -142,6 +147,11 @@ export default function DriverPortal() {
   const [showPaySettings, setShowPaySettings] = useState(false);
   const [payForm, setPayForm] = useState({ cashapp: "", venmo: "", paypal: "" });
   const [activeMsg, setActiveMsg] = useState<Booking | null>(null);
+  const [showProfileEditor, setShowProfileEditor] = useState(false);
+
+  const { data: driverProfile = {} as Profile } = useQuery<Profile>({
+    queryKey: ["/api/driver/profile"],
+  });
 
   // Live polling — refresh every 8s
   const { data: bookings = [], isLoading } = useQuery<Booking[]>({
@@ -196,6 +206,7 @@ export default function DriverPortal() {
     <div style={{ minHeight: "100dvh" }}>
       <Nav />
       {activeMsg && <MessageThread booking={activeMsg} onClose={() => setActiveMsg(null)} />}
+      {showProfileEditor && <DriverProfileEditor onClose={() => setShowProfileEditor(false)} />}
 
       <div style={{ maxWidth: "900px", margin: "0 auto", padding: "2rem 1.5rem 5rem" }}>
 
@@ -209,11 +220,29 @@ export default function DriverPortal() {
             </p>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "flex-end" }}>
-            <div className="card" style={{ textAlign: "center", minWidth: "120px" }}>
-              <p className="section-label">Active Jobs</p>
-              <p style={{ fontSize: "2.5rem", fontWeight: 800, color: "var(--green)", lineHeight: 1.2, marginTop: "0.25rem" }}>
-                {counts.confirmed + counts.in_progress}
-              </p>
+            {/* Driver mini-profile */}
+            <div
+              className="card"
+              style={{ display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer", minWidth: "160px" }}
+              onClick={() => setShowProfileEditor(true)}
+            >
+              <div style={{
+                width: "44px", height: "44px", borderRadius: "50%",
+                border: "2px solid var(--green)",
+                background: "var(--surface-3)",
+                overflow: "hidden", flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                {driverProfile.photoUrl ? (
+                  <img src={`${BACKEND}${driverProfile.photoUrl}`} alt="profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <span style={{ fontSize: "1.4rem" }}>👤</span>
+                )}
+              </div>
+              <div>
+                <p style={{ fontWeight: 700, fontSize: "0.85rem", lineHeight: 1.2 }}>{driverProfile.name || "Set Profile"}</p>
+                <p style={{ color: "var(--green)", fontSize: "0.72rem" }}>Edit →</p>
+              </div>
             </div>
             <button
               className="btn-outline"
