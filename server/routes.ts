@@ -92,6 +92,54 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(member);
   });
 
+  // ── Driver Accounts ────────────────────────────────────────────────────
+  app.post("/api/drivers/register", (req, res) => {
+    const schema = z.object({
+      name: z.string().min(1),
+      email: z.string().email(),
+      phone: z.string().min(6),
+      vehicleType: z.string().min(1),
+      licenseNumber: z.string().min(1),
+      pin: z.string().min(4),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid fields", details: parsed.error.flatten() });
+    const { name, email, phone, vehicleType, licenseNumber, pin } = parsed.data;
+    // Check duplicate email
+    const existing = storage.getDriverByEmail(email);
+    if (existing) return res.status(409).json({ error: "An account with that email already exists." });
+    const driver = storage.registerDriver({
+      name, email, phone, vehicleType, licenseNumber, pin,
+      status: "pending",
+      joinedAt: new Date().toISOString(),
+    });
+    res.json({ id: driver.id, name: driver.name, email: driver.email, status: driver.status });
+  });
+
+  app.post("/api/drivers/login", (req, res) => {
+    const schema = z.object({ email: z.string().email(), pin: z.string() });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid fields" });
+    const { email, pin } = parsed.data;
+    const driver = storage.getDriverByEmail(email);
+    if (!driver) return res.status(401).json({ error: "No account found for that email." });
+    if (driver.pin !== pin) return res.status(401).json({ error: "Incorrect PIN." });
+    res.json({ id: driver.id, name: driver.name, email: driver.email, status: driver.status, vehicleType: driver.vehicleType });
+  });
+
+  app.get("/api/drivers", (_req, res) => {
+    const all = storage.getAllDrivers().map(d => ({ ...d, pin: undefined }));
+    res.json(all);
+  });
+
+  app.patch("/api/drivers/:id/status", (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    const { status } = z.object({ status: z.enum(["pending", "active"]) }).parse(req.body);
+    storage.updateDriverStatus(id, status);
+    res.json({ ok: true });
+  });
+
   // ── Driver Profile ─────────────────────────────────────────────────────
   app.get("/api/driver/profile", (_req, res) => {
     res.json(storage.getDriverProfile() || {});

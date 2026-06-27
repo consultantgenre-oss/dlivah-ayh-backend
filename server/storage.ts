@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
-import { members, bookings, type Member, type InsertMember, type Booking, type InsertBooking } from "@shared/schema";
+import { members, bookings, drivers, type Member, type InsertMember, type Booking, type InsertBooking, type Driver, type InsertDriver } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 const sqlite = new Database("data.db");
@@ -8,6 +8,17 @@ export const db = drizzle(sqlite);
 
 // Init tables
 sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS drivers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    vehicle_type TEXT NOT NULL,
+    license_number TEXT NOT NULL,
+    pin TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    joined_at TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -79,6 +90,13 @@ try {
 } catch {}
 
 export interface IStorage {
+  // Drivers
+  registerDriver(data: InsertDriver): Driver;
+  getDriverByEmail(email: string): Driver | undefined;
+  getDriverById(id: number): Driver | undefined;
+  getAllDrivers(): Driver[];
+  updateDriverStatus(id: number, status: string): void;
+
   // Members
   createMember(data: InsertMember): Member;
   getMembers(): Member[];
@@ -108,6 +126,22 @@ export interface IStorage {
 }
 
 export const storage: IStorage = {
+  registerDriver(data) {
+    return db.insert(drivers).values(data).returning().get();
+  },
+  getDriverByEmail(email) {
+    return db.select().from(drivers).where(eq(drivers.email, email)).get();
+  },
+  getDriverById(id) {
+    return db.select().from(drivers).where(eq(drivers.id, id)).get();
+  },
+  getAllDrivers() {
+    return db.select().from(drivers).all();
+  },
+  updateDriverStatus(id, status) {
+    sqlite.prepare("UPDATE drivers SET status = ? WHERE id = ?").run(status, id);
+  },
+
   createMember(data) {
     return db.insert(members).values(data).returning().get();
   },

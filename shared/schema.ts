@@ -2,6 +2,23 @@ import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Driver accounts
+export const drivers = sqliteTable("drivers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  vehicleType: text("vehicle_type").notNull(),
+  licenseNumber: text("license_number").notNull(),
+  pin: text("pin").notNull(),
+  status: text("status").notNull().default("pending"), // "pending" | "active"
+  joinedAt: text("joined_at").notNull(),
+});
+
+export const insertDriverSchema = createInsertSchema(drivers).omit({ id: true });
+export type InsertDriver = z.infer<typeof insertDriverSchema>;
+export type Driver = typeof drivers.$inferSelect;
+
 // Founder positions: FOC | DOF | BP
 export const members = sqliteTable("members", {
   id: integer("id").primaryKey({ autoIncrement: true }),
