@@ -104,6 +104,7 @@ export interface IStorage {
   getMembersByRole(role: string): Member[];
   getMembersPendingPayment(): Member[];
   confirmPayment(id: number, paymentRef?: string): Member | undefined;
+  deleteMember(id: number): boolean;
 
   // Bookings
   createBooking(data: InsertBooking): Booking;
@@ -162,6 +163,10 @@ export const storage: IStorage = {
       .set({ paymentStatus: "paid", status: "active", paymentRef: paymentRef ?? null })
       .where(eq(members.id, id))
       .returning().get();
+  },
+  deleteMember(id) {
+    const result = db.delete(members).where(eq(members.id, id)).run();
+    return result.changes > 0;
   },
   createBooking(data) {
     return db.insert(bookings).values(data).returning().get();

@@ -142,12 +142,12 @@ function MessageThread({ booking, onClose }: { booking: Booking; onClose: () => 
   );
 }
 
-type PortalProps = { authed: boolean; onAuth: () => void };
+type PortalProps = { authed: boolean; onAuth: () => void; onLogout: () => void };
 type Member = { id: number; name: string; email: string; phone: string; role: string; tier?: string | null; businessName?: string | null; membershipPrice: string; paymentStatus: string; paymentRef?: string | null; status: string; joinedAt: string };
 
 const ROLE_COLOR: Record<string, string> = { FOC: "#22c55e", DOF: "#a855f7", BP: "#eab308" };
 
-export default function DriverPortal({ authed, onAuth }: PortalProps) {
+export default function DriverPortal({ authed, onAuth, onLogout }: PortalProps) {
   const { toast } = useToast();
   const [tab, setTab] = useState<"jobs" | "members">("jobs");
   const [filter, setFilter] = useState<string>("all");
@@ -213,6 +213,17 @@ export default function DriverPortal({ authed, onAuth }: PortalProps) {
     },
   });
 
+  const deleteMember = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`${BACKEND}/api/members/${id}`, { method: "DELETE" });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/members"] });
+      toast({ title: "Member removed" });
+    },
+  });
+
   // Auth gate — all hooks declared above, safe to early-return here
   if (!authed) return <DriverLogin onAuth={onAuth} />;
 
@@ -253,6 +264,10 @@ export default function DriverPortal({ authed, onAuth }: PortalProps) {
             </p>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "flex-end" }}>
+            <button
+              onClick={onLogout}
+              style={{ fontSize: "0.75rem", padding: "0.35rem 0.85rem", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "var(--text-muted)", cursor: "pointer", letterSpacing: "0.03em" }}
+            >Sign Out</button>
             {/* Driver mini-profile */}
             <div
               className="card"
@@ -403,6 +418,10 @@ export default function DriverPortal({ authed, onAuth }: PortalProps) {
                               ✓ Confirm Payment
                             </button>
                           )}
+                          <button
+                            onClick={() => { if (window.confirm(`Remove ${m.name}?`)) deleteMember.mutate(m.id); }}
+                            style={{ fontSize: "0.75rem", padding: "0.3rem 0.7rem", borderRadius: "6px", border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.08)", color: "#ef4444", cursor: "pointer" }}
+                          >Delete</button>
                           <a
                             href={`/#/member/${m.id}`}
                             style={{ fontSize: "0.75rem", color: "var(--text-muted)", textDecoration: "underline" }}

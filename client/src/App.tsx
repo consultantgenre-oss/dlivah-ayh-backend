@@ -27,7 +27,7 @@ function App() {
           <Route path="/join" component={Join} />
           <Route path="/pricing" component={Pricing} />
           <Route path="/driver">
-            {() => <DriverPortal authed={driverAuthed} onAuth={() => setDriverAuthed(true)} />}
+            {() => <DriverPortal authed={driverAuthed} onAuth={() => setDriverAuthed(true)} onLogout={() => setDriverAuthed(false)} />}
           </Route>
           <Route path="/foundation" component={Foundation} />
           <Route path="/messages/:id" component={CustomerThread} />

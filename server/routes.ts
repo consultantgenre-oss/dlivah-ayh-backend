@@ -92,6 +92,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(member);
   });
 
+  app.delete("/api/members/:id", (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    const deleted = storage.deleteMember(id);
+    if (!deleted) return res.status(404).json({ error: "Not found" });
+    res.json({ success: true });
+  });
+
   // ── Driver Accounts ────────────────────────────────────────────────────
   app.post("/api/drivers/register", (req, res) => {
     const schema = z.object({
