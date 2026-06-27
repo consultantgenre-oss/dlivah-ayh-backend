@@ -14,10 +14,14 @@ sqlite.exec(`
     email TEXT NOT NULL,
     phone TEXT NOT NULL,
     role TEXT NOT NULL,
+    tier TEXT,
     business_name TEXT,
     vehicle_type TEXT,
     license_number TEXT,
-    status TEXT NOT NULL DEFAULT 'active',
+    membership_price TEXT NOT NULL DEFAULT '99.99',
+    payment_status TEXT NOT NULL DEFAULT 'pending',
+    payment_ref TEXT,
+    status TEXT NOT NULL DEFAULT 'pending_payment',
     joined_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS settings (
@@ -57,11 +61,31 @@ sqlite.exec(`
   );
 `);
 
+// Migrate existing members table columns if needed
+try {
+  sqlite.exec(`ALTER TABLE members ADD COLUMN tier TEXT`);
+} catch {}
+try {
+  sqlite.exec(`ALTER TABLE members ADD COLUMN membership_price TEXT NOT NULL DEFAULT '99.99'`);
+} catch {}
+try {
+  sqlite.exec(`ALTER TABLE members ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'pending'`);
+} catch {}
+try {
+  sqlite.exec(`ALTER TABLE members ADD COLUMN payment_ref TEXT`);
+} catch {}
+try {
+  sqlite.exec(`ALTER TABLE members ADD COLUMN status TEXT NOT NULL DEFAULT 'pending_payment'`);
+} catch {}
+
 export interface IStorage {
   // Members
   createMember(data: InsertMember): Member;
   getMembers(): Member[];
+  getMemberById(id: number): Member | undefined;
   getMembersByRole(role: string): Member[];
+  getMembersPendingPayment(): Member[];
+  confirmPayment(id: number, paymentRef?: string): Member | undefined;
 
   // Bookings
   createBooking(data: InsertBooking): Booking;
@@ -90,8 +114,20 @@ export const storage: IStorage = {
   getMembers() {
     return db.select().from(members).all();
   },
+  getMemberById(id) {
+    return db.select().from(members).where(eq(members.id, id)).get();
+  },
   getMembersByRole(role) {
     return db.select().from(members).where(eq(members.role, role)).all();
+  },
+  getMembersPendingPayment() {
+    return db.select().from(members).where(eq(members.paymentStatus, "pending")).all();
+  },
+  confirmPayment(id, paymentRef) {
+    return db.update(members)
+      .set({ paymentStatus: "paid", status: "active", paymentRef: paymentRef ?? null })
+      .where(eq(members.id, id))
+      .returning().get();
   },
   createBooking(data) {
     return db.insert(bookings).values(data).returning().get();

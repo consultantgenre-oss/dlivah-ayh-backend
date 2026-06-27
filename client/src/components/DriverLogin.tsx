@@ -1,35 +1,44 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
 
-const SESSION_KEY = "dlivah_driver_auth";
+const BACKEND = "https://backend-production-507b.up.railway.app";
 
 type Props = { onAuth: () => void };
 
 export default function DriverLogin({ onAuth }: Props) {
+  const [loading, setLoading] = useState(true);
+  const [hasPin, setHasPin] = useState(false);
+  const [settingUp, setSettingUp] = useState(false);
+
+  // Login state
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
-  const [settingUp, setSettingUp] = useState(false);
+
+  // Setup state
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [setupError, setSetupError] = useState("");
 
-  const { data: settings = {} } = useQuery<Record<string, string>>({
-    queryKey: ["/api/settings"],
-  });
-
-  // Check session on mount
+  // On mount: fetch whether a PIN exists (no sessionStorage — blocked in iframe)
   useEffect(() => {
-    const stored = sessionStorage.getItem(SESSION_KEY);
-    if (stored === "authenticated") onAuth();
+    fetch(`${BACKEND}/api/settings`)
+      .then((r) => r.json())
+      .then((data: Record<string, string>) => {
+        setHasPin(!!data.driver_pin);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  const hasPin = !!settings.driver_pin;
-
-  const handleLogin = () => {
-    if (!input.trim()) return;
-    if (input === settings.driver_pin) {
-      sessionStorage.setItem(SESSION_KEY, "authenticated");
-      onAuth();
+  const handleLogin = async () => {
+    const pin = input.trim();
+    if (!pin) return;
+    setError("");
+    // Always fetch fresh from server
+    const data: Record<string, string> = await fetch(`${BACKEND}/api/settings`)
+      .then((r) => r.json())
+      .catch(() => ({}));
+    if (pin === data.driver_pin) {
+      onAuth(); // Lifts auth state up to App — survives navigation
     } else {
       setError("Incorrect PIN. Try again.");
       setInput("");
@@ -40,14 +49,26 @@ export default function DriverLogin({ onAuth }: Props) {
     setSetupError("");
     if (newPin.length < 4) { setSetupError("PIN must be at least 4 characters."); return; }
     if (newPin !== confirmPin) { setSetupError("PINs don't match."); return; }
-    await fetch("https://backend-production-507b.up.railway.app/api/settings", {
+    await fetch(`${BACKEND}/api/settings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key: "driver_pin", value: newPin }),
     });
-    sessionStorage.setItem(SESSION_KEY, "authenticated");
     onAuth();
   };
+
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: "100dvh", display: "flex", alignItems: "center",
+        justifyContent: "center", background: "var(--bg)",
+      }}>
+        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Loading…</p>
+      </div>
+    );
+  }
+
+  const showSetup = !hasPin || settingUp;
 
   return (
     <div style={{
@@ -73,14 +94,15 @@ export default function DriverLogin({ onAuth }: Props) {
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: "1.6rem",
           }}>🚗</div>
-          <p style={{ fontWeight: 800, fontSize: "1.15rem", letterSpacing: "-0.02em" }}>Driver Access</p>
+          <p style={{ fontWeight: 800, fontSize: "1.15rem", letterSpacing: "-0.02em" }}>
+            Driver Access
+          </p>
           <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginTop: "0.25rem" }}>
-            {hasPin ? "Enter your PIN to continue." : "Set a PIN to secure your portal."}
+            {showSetup ? "Set a PIN to secure your portal." : "Enter your PIN to continue."}
           </p>
         </div>
 
-        {!hasPin || settingUp ? (
-          /* Setup mode */
+        {showSetup ? (
           <div style={{ display: "grid", gap: "1rem" }}>
             <div>
               <label style={{ fontSize: "0.82rem" }}>Create PIN</label>
@@ -106,12 +128,26 @@ export default function DriverLogin({ onAuth }: Props) {
               />
             </div>
             {setupError && <p style={{ color: "#ef4444", fontSize: "0.82rem" }}>{setupError}</p>}
-            <button className="btn-green" style={{ width: "100%", marginTop: "0.25rem" }} onClick={handleSetup}>
-              Set PIN & Enter Portal
+            <button
+              className="btn-green"
+              style={{ width: "100%", marginTop: "0.25rem" }}
+              onClick={handleSetup}
+            >
+              Set PIN &amp; Enter Portal
             </button>
+            {hasPin && (
+              <button
+                onClick={() => setSettingUp(false)}
+                style={{
+                  background: "none", border: "none", color: "var(--text-muted)",
+                  fontSize: "0.78rem", cursor: "pointer", textAlign: "center",
+                }}
+              >
+                Cancel
+              </button>
+            )}
           </div>
         ) : (
-          /* Login mode */
           <div style={{ display: "grid", gap: "1rem" }}>
             <div>
               <label style={{ fontSize: "0.82rem" }}>PIN</label>

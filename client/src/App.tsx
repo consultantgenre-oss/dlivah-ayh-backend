@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Switch, Route, Router } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -10,9 +11,13 @@ import Foundation from "@/pages/Foundation";
 import Join from "@/pages/Join";
 import Pricing from "@/pages/Pricing";
 import CustomerThread from "@/pages/CustomerThread";
+import MemberDashboard from "@/pages/MemberDashboard";
 import NotFound from "@/pages/not-found";
 
 function App() {
+  // Auth state lives here so it survives route changes
+  const [driverAuthed, setDriverAuthed] = useState(false);
+
   return (
     <QueryClientProvider client={queryClient}>
       <Router hook={useHashLocation}>
@@ -21,9 +26,13 @@ function App() {
           <Route path="/book" component={Book} />
           <Route path="/join" component={Join} />
           <Route path="/pricing" component={Pricing} />
-          <Route path="/driver" component={DriverPortal} />
+          <Route path="/driver">
+            {() => <DriverPortal authed={driverAuthed} onAuth={() => setDriverAuthed(true)} />}
+          </Route>
           <Route path="/foundation" component={Foundation} />
           <Route path="/messages/:id" component={CustomerThread} />
+          <Route path="/member/:id" component={MemberDashboard} />
+          <Route path="/member" component={MemberDashboard} />
           <Route component={NotFound} />
         </Switch>
       </Router>

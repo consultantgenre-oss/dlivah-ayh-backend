@@ -142,14 +142,20 @@ function MessageThread({ booking, onClose }: { booking: Booking; onClose: () => 
   );
 }
 
-export default function DriverPortal() {
+type PortalProps = { authed: boolean; onAuth: () => void };
+type Member = { id: number; name: string; email: string; phone: string; role: string; tier?: string | null; businessName?: string | null; membershipPrice: string; paymentStatus: string; paymentRef?: string | null; status: string; joinedAt: string };
+
+const ROLE_COLOR: Record<string, string> = { FOC: "#22c55e", DOF: "#a855f7", BP: "#eab308" };
+
+export default function DriverPortal({ authed, onAuth }: PortalProps) {
   const { toast } = useToast();
-  const [authed, setAuthed] = useState(false);
+  const [tab, setTab] = useState<"jobs" | "members">("jobs");
   const [filter, setFilter] = useState<string>("all");
   const [showPaySettings, setShowPaySettings] = useState(false);
   const [payForm, setPayForm] = useState({ cashapp: "", venmo: "", paypal: "" });
   const [activeMsg, setActiveMsg] = useState<Booking | null>(null);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
 
   const { data: driverProfile = {} as Profile } = useQuery<Profile>({
     queryKey: ["/api/driver/profile"],
@@ -165,12 +171,7 @@ export default function DriverPortal() {
   const { data: settings = {} } = useQuery<Record<string, string>>({
     queryKey: ["/api/settings"],
     enabled: authed,
-    onSuccess: (data: Record<string, string>) => {
-      setPayForm({ cashapp: data.cashapp || "", venmo: data.venmo || "", paypal: data.paypal || "" });
-    },
   });
-
-  if (!authed) return <DriverLogin onAuth={() => setAuthed(true)} />;
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: number; status: string }) => {
@@ -188,6 +189,32 @@ export default function DriverPortal() {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/settings"] }),
   });
+
+  const { data: allMembers = [] } = useQuery<Member[]>({
+    queryKey: ["/api/members"],
+    queryFn: () => fetch(`${BACKEND}/api/members`).then(r => r.json()),
+    refetchInterval: authed ? 10000 : false,
+    enabled: authed,
+  });
+
+  const confirmPayment = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`${BACKEND}/api/members/${id}/confirm-payment`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/members"] });
+      toast({ title: "Payment confirmed — member activated" });
+      setConfirmingId(null);
+    },
+  });
+
+  // Auth gate — all hooks declared above, safe to early-return here
+  if (!authed) return <DriverLogin onAuth={onAuth} />;
 
   const savePaySettings = async () => {
     await Promise.all([
@@ -293,8 +320,105 @@ export default function DriverPortal() {
           </div>
         )}
 
-        {/* Stats */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
+        {/* Tab switcher */}
+        <div style={{ display: "flex", gap: "0.4rem", marginBottom: "2rem" }}>
+          {(["jobs", "members"] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              style={{
+                padding: "0.45rem 1.1rem", borderRadius: "0.5rem",
+                border: `1px solid ${tab === t ? "var(--green)" : "var(--border-color)"}`,
+                background: tab === t ? "var(--green-glow)" : "transparent",
+                color: tab === t ? "var(--green)" : "var(--text-muted)",
+                fontWeight: tab === t ? 700 : 500, fontSize: "0.85rem", cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+            >
+              {t === "jobs" ? "Jobs" : `Members ${allMembers.filter(m => m.paymentStatus === "pending").length > 0 ? `(${allMembers.filter(m => m.paymentStatus === "pending").length} pending)` : ""}`}
+            </button>
+          ))}
+        </div>
+
+        {/* ── MEMBERS TAB ── */}
+        {tab === "members" && (
+          <div>
+            {/* Summary stats */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.75rem", marginBottom: "1.75rem" }}>
+              {[
+                { label: "Total", value: allMembers.length, color: "var(--text-primary)" },
+                { label: "FOC", value: allMembers.filter(m => m.role === "FOC").length, color: "#22c55e" },
+                { label: "DOF", value: allMembers.filter(m => m.role === "DOF").length, color: "#a855f7" },
+                { label: "BP", value: allMembers.filter(m => m.role === "BP").length, color: "#eab308" },
+                { label: "Pending", value: allMembers.filter(m => m.paymentStatus === "pending").length, color: "#f59e0b" },
+              ].map(s => (
+                <div key={s.label} className="card" style={{ textAlign: "center" }}>
+                  <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.25rem" }}>{s.label}</p>
+                  <p style={{ fontSize: "1.6rem", fontWeight: 800, color: s.color }}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {allMembers.length === 0 ? (
+              <div className="card" style={{ textAlign: "center", padding: "3rem" }}>
+                <p style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>👥</p>
+                <p style={{ color: "var(--text-muted)" }}>No members yet. Share the join link to get started.</p>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: "0.75rem" }}>
+                {[...allMembers].reverse().map(m => {
+                  const color = ROLE_COLOR[m.role] ?? "#fff";
+                  const isPaid = m.paymentStatus === "paid";
+                  return (
+                    <div key={m.id} className="card" style={{
+                      borderColor: !isPaid ? "rgba(245,158,11,0.35)" : "var(--border-color)",
+                      background: !isPaid ? "rgba(245,158,11,0.04)" : "var(--surface-2)",
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem" }}>
+                        <div style={{ flex: 1, minWidth: "200px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.4rem" }}>
+                            <span style={{ fontWeight: 800, fontSize: "0.9rem", color, letterSpacing: "0.04em" }}>{m.role}</span>
+                            {m.tier && <span style={{ fontSize: "0.72rem", padding: "0.1rem 0.45rem", borderRadius: "999px", background: `${color}18`, color, fontWeight: 600 }}>{m.tier}</span>}
+                            <span style={{
+                              fontSize: "0.7rem", padding: "0.1rem 0.45rem", borderRadius: "999px", fontWeight: 700,
+                              background: isPaid ? "rgba(34,197,94,0.15)" : "rgba(245,158,11,0.15)",
+                              color: isPaid ? "#22c55e" : "#f59e0b",
+                            }}>{isPaid ? "Active" : "Pending"}</span>
+                          </div>
+                          <p style={{ fontWeight: 700, fontSize: "0.95rem" }}>{m.name}</p>
+                          <p style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{m.email} · {m.phone}</p>
+                          {m.businessName && <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginTop: "0.2rem" }}>{m.businessName}</p>}
+                          {m.paymentRef && <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>Ref: {m.paymentRef}</p>}
+                        </div>
+                        <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.5rem" }}>
+                          <p style={{ fontWeight: 800, color, fontSize: "1rem" }}>${m.membershipPrice}</p>
+                          <p style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>#{m.id}</p>
+                          {!isPaid && (
+                            <button
+                              className="btn-green"
+                              style={{ fontSize: "0.8rem", padding: "0.4rem 0.9rem", opacity: confirmPayment.isPending && confirmingId === m.id ? 0.5 : 1 }}
+                              disabled={confirmPayment.isPending && confirmingId === m.id}
+                              onClick={() => { setConfirmingId(m.id); confirmPayment.mutate(m.id); }}
+                            >
+                              ✓ Confirm Payment
+                            </button>
+                          )}
+                          <a
+                            href={`/#/member/${m.id}`}
+                            style={{ fontSize: "0.75rem", color: "var(--text-muted)", textDecoration: "underline" }}
+                          >View Dashboard</a>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── JOBS TAB ── */}
+        {tab === "jobs" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginBottom: "2rem" }}>
           {[
             { label: "New Requests", value: counts.pending, color: "#f59e0b" },
             { label: "Confirmed", value: counts.confirmed, color: "var(--green)" },
@@ -306,10 +430,10 @@ export default function DriverPortal() {
               <p style={{ fontSize: "1.8rem", fontWeight: 800, color: s.color }}>{s.value}</p>
             </div>
           ))}
-        </div>
+        </div>}
 
         {/* Filters */}
-        <div style={{ display: "flex", gap: "0.4rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
+        {tab === "jobs" && <div style={{ display: "flex", gap: "0.4rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
           {["all", "pending", "confirmed", "in_progress", "completed"].map(f => (
             <button key={f} onClick={() => setFilter(f)} style={{
               padding: "0.4rem 0.9rem", borderRadius: "999px",
@@ -322,10 +446,10 @@ export default function DriverPortal() {
               {f === "all" ? "All" : f.replace("_", " ")} ({counts[f as keyof typeof counts] ?? 0})
             </button>
           ))}
-        </div>
+        </div>}
 
         {/* Bookings */}
-        {isLoading ? (
+        {tab === "jobs" && isLoading ? (
           <div style={{ textAlign: "center", padding: "4rem", color: "var(--text-muted)" }}>Loading jobs...</div>
         ) : filtered.length === 0 ? (
           <div className="card" style={{ textAlign: "center", padding: "4rem" }}>

@@ -71,6 +71,27 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(members);
   });
 
+  app.get("/api/members/pending", (_req, res) => {
+    res.json(storage.getMembersPendingPayment());
+  });
+
+  app.get("/api/members/:id", (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    const member = storage.getMemberById(id);
+    if (!member) return res.status(404).json({ error: "Not found" });
+    res.json(member);
+  });
+
+  app.patch("/api/members/:id/confirm-payment", (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    const { paymentRef } = z.object({ paymentRef: z.string().optional() }).parse(req.body);
+    const member = storage.confirmPayment(id, paymentRef);
+    if (!member) return res.status(404).json({ error: "Not found" });
+    res.json(member);
+  });
+
   // ── Driver Profile ─────────────────────────────────────────────────────
   app.get("/api/driver/profile", (_req, res) => {
     res.json(storage.getDriverProfile() || {});

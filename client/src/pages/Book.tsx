@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -10,11 +10,6 @@ const SERVICE_TYPES = [
   { id: "ride", label: "Ride", icon: "🚗", desc: "Pickup & drop-off anywhere", badge: "Quick" },
   { id: "move", label: "Move", icon: "📦", desc: "Local residential moving", badge: "Scheduled" },
   { id: "delivery", label: "Delivery", icon: "🔁", desc: "Item or package delivery", badge: "Same Day" },
-];
-
-const TIME_SLOTS = [
-  "8:00 AM","9:00 AM","10:00 AM","11:00 AM","12:00 PM",
-  "1:00 PM","2:00 PM","3:00 PM","4:00 PM","5:00 PM","6:00 PM","7:00 PM",
 ];
 
 export default function Book() {
@@ -29,6 +24,16 @@ export default function Book() {
   const preType = params.get("type") || "";
 
   const [step, setStep] = useState(1);
+  const confirmBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Auto-scroll confirm button into view when reaching step 3
+  useEffect(() => {
+    if (step === 3) {
+      setTimeout(() => {
+        confirmBtnRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 100);
+    }
+  }, [step]);
   const [form, setForm] = useState({
     bookingType: preType,
     customerName: "",
@@ -65,7 +70,13 @@ export default function Book() {
 
   const canNext1 = form.bookingType !== "";
   const canNext2 = form.customerName && form.customerPhone && form.pickupAddress && form.dropoffAddress;
-  const canNext3 = form.scheduledDate && form.scheduledTime;
+  // Time is valid when all three parts (hr:min AM/PM) are set
+  const timeValid = (() => {
+    if (!form.scheduledTime) return false;
+    const parts = form.scheduledTime.split(/:| /);
+    return parts.length === 3 && parts[0] !== "" && parts[1] !== "" && (parts[2] === "AM" || parts[2] === "PM");
+  })();
+  const canNext3 = form.scheduledDate && timeValid;
 
   const payMethods = [
     { key: "cashapp", label: "Cash App", icon: "💚" },
@@ -272,27 +283,59 @@ export default function Book() {
               </div>
               <div>
                 <label>Time</label>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.5rem" }}>
-                  {TIME_SLOTS.map(t => (
-                    <button
-                      key={t}
-                      data-testid={`button-time-${t}`}
-                      onClick={() => set("scheduledTime", t)}
-                      style={{
-                        padding: "0.5rem 0.25rem",
-                        border: `1px solid ${form.scheduledTime === t ? "var(--green)" : "var(--border-color)"}`,
-                        background: form.scheduledTime === t ? "var(--green-glow)" : "var(--surface-3)",
-                        color: form.scheduledTime === t ? "var(--green)" : "var(--text-muted)",
-                        borderRadius: "0.4rem",
-                        fontSize: "0.78rem",
-                        fontWeight: form.scheduledTime === t ? 700 : 400,
-                        cursor: "pointer",
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      {t}
-                    </button>
-                  ))}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem" }}>
+                  {/* Hour */}
+                  <select
+                    className="input-field"
+                    style={{ textAlign: "center" }}
+                    value={form.scheduledTime ? form.scheduledTime.split(":")[0] : ""}
+                    onChange={e => {
+                      const parts = form.scheduledTime ? form.scheduledTime.split(/:| /) : ["", "00", "PM"];
+                      const min = parts[1] || "00";
+                      const ampm = parts[2] || "PM";
+                      set("scheduledTime", `${e.target.value}:${min} ${ampm}`);
+                    }}
+                    data-testid="select-hour"
+                  >
+                    <option value="">Hr</option>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(h => (
+                      <option key={h} value={String(h)}>{h}</option>
+                    ))}
+                  </select>
+                  {/* Minute */}
+                  <select
+                    className="input-field"
+                    style={{ textAlign: "center" }}
+                    value={form.scheduledTime ? form.scheduledTime.split(/:| /)[1] : ""}
+                    onChange={e => {
+                      const parts = form.scheduledTime ? form.scheduledTime.split(/:| /) : ["12", "", "PM"];
+                      const hr = parts[0] || "12";
+                      const ampm = parts[2] || "PM";
+                      set("scheduledTime", `${hr}:${e.target.value} ${ampm}`);
+                    }}
+                    data-testid="select-minute"
+                  >
+                    <option value="">Min</option>
+                    {["00","05","10","15","20","25","30","35","40","45","50","55"].map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                  {/* AM/PM */}
+                  <select
+                    className="input-field"
+                    style={{ textAlign: "center" }}
+                    value={form.scheduledTime ? form.scheduledTime.split(" ")[1] : "PM"}
+                    onChange={e => {
+                      const parts = form.scheduledTime ? form.scheduledTime.split(/:| /) : ["12", "00", ""];
+                      const hr = parts[0] || "12";
+                      const min = parts[1] || "00";
+                      set("scheduledTime", `${hr}:${min} ${e.target.value}`);
+                    }}
+                    data-testid="select-ampm"
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
                 </div>
               </div>
               {form.bookingType !== "move" && (
@@ -324,6 +367,7 @@ export default function Book() {
             <div style={{ display: "flex", gap: "0.75rem" }}>
               <button className="btn-outline" style={{ flex: 1 }} onClick={() => setStep(2)}>← Back</button>
               <button
+                ref={confirmBtnRef}
                 className="btn-green"
                 style={{ flex: 2, opacity: canNext3 && !mutation.isPending ? 1 : 0.4 }}
                 disabled={!canNext3 || mutation.isPending}

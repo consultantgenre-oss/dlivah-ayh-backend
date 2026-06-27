@@ -9,10 +9,14 @@ export const members = sqliteTable("members", {
   email: text("email").notNull(),
   phone: text("phone").notNull(),
   role: text("role").notNull(), // "FOC" | "DOF" | "BP"
+  tier: text("tier"),           // BP only: "Small" | "Mid" | "Large"
   businessName: text("business_name"), // BP only
-  vehicleType: text("vehicle_type"), // DOF only
+  vehicleType: text("vehicle_type"),   // DOF only
   licenseNumber: text("license_number"), // DOF only
-  status: text("status").notNull().default("active"),
+  membershipPrice: text("membership_price").notNull().default("99.99"),
+  paymentStatus: text("payment_status").notNull().default("pending"), // "pending" | "paid"
+  paymentRef: text("payment_ref"), // e.g. CashApp transaction ID they send
+  status: text("status").notNull().default("pending_payment"), // "pending_payment" | "active"
   joinedAt: text("joined_at").notNull(),
 });
 
@@ -32,7 +36,7 @@ export const bookings = sqliteTable("bookings", {
   scheduledDate: text("scheduled_date").notNull(),
   scheduledTime: text("scheduled_time").notNull(),
   notes: text("notes"),
-  status: text("status").notNull().default("pending"), // pending | confirmed | in_progress | completed | cancelled
+  status: text("status").notNull().default("pending"),
   estimatedPrice: text("estimated_price"),
   createdAt: text("created_at").notNull(),
 });
