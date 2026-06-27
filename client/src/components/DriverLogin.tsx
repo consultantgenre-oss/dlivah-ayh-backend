@@ -139,7 +139,7 @@ export default function DriverLogin({ onAuth }: Props) {
             color: "var(--text-muted)", fontSize: "1.05rem", lineHeight: 1.65,
             maxWidth: "520px", margin: "0 auto 2rem",
           }}>
-            New York rides, moves, and deliveries. Become a founding driver and lock in your rate before the platform opens to the public.
+            Greater Hartford, Connecticut. Rides, moves, and deliveries. Become a founding driver and lock in your rate before the platform opens to the public.
           </p>
 
           <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>

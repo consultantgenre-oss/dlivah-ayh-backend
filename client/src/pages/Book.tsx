@@ -240,11 +240,11 @@ export default function Book() {
               <div className="divider" style={{ margin: "0.25rem 0" }} />
               <div>
                 <label htmlFor="pickup">Pickup Address</label>
-                <input id="pickup" className="input-field" placeholder="123 Main St, Brooklyn, NY" value={form.pickupAddress} onChange={e => set("pickupAddress", e.target.value)} data-testid="input-pickup" />
+                <input id="pickup" className="input-field" placeholder="123 Main St, Hartford, CT" value={form.pickupAddress} onChange={e => set("pickupAddress", e.target.value)} data-testid="input-pickup" />
               </div>
               <div>
                 <label htmlFor="dropoff">Drop-off Address</label>
-                <input id="dropoff" className="input-field" placeholder="456 Park Ave, Queens, NY" value={form.dropoffAddress} onChange={e => set("dropoffAddress", e.target.value)} data-testid="input-dropoff" />
+                <input id="dropoff" className="input-field" placeholder="456 Farmington Ave, West Hartford, CT" value={form.dropoffAddress} onChange={e => set("dropoffAddress", e.target.value)} data-testid="input-dropoff" />
               </div>
               {form.bookingType === "move" && (
                 <div>

@@ -10,7 +10,7 @@ export default function Home() {
           DLIVAH-AYH
         </h1>
         <p style={{ color: "var(--text-muted)", fontSize: "1rem", marginBottom: "3rem" }}>
-          New York · Rides · Moves · Deliveries
+          Greater Hartford, CT · Rides · Moves · Deliveries
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxWidth: "320px", margin: "0 auto" }}>
           <Link href="/book">
