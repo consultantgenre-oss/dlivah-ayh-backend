@@ -10,7 +10,7 @@ const PERKS = [
   { icon: "💰", label: "90% Revenue Per Job", sub: "Keep more of what you earn — every single job." },
   { icon: "📅", label: "You Set Your Schedule", sub: "Work when you want. No minimums, no shifts." },
   { icon: "🚀", label: "Founding Driver Rate", sub: "Lock in your rate before prices change. Forever." },
-  { icon: "🌐", label: "Early Platform Access", sub: "Shape how the platform grows. Your input matters." },
+  { icon: "🌐", label: "Early Platform Access", sub: "Founding drivers get access before the platform opens to the public." },
 ];
 
 export default function DriverLogin({ onAuth }: Props) {
@@ -320,7 +320,7 @@ export default function DriverLogin({ onAuth }: Props) {
             </div>
             <div>
               <label style={{ fontSize: "0.82rem" }}>Phone</label>
-              <input className="input-field" type="tel" placeholder="(718) 000-0000" value={regPhone}
+              <input className="input-field" type="tel" placeholder="(860) 000-0000" value={regPhone}
                 onChange={e => { setRegPhone(e.target.value); setError(""); }} />
             </div>
             <div>

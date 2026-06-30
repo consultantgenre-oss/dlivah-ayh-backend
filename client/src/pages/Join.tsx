@@ -34,7 +34,7 @@ const POSITIONS = [
     glow: "rgba(234,179,8,0.10)",
     border: "rgba(234,179,8,0.4)",
     price: null,
-    priceLabel: "$99 – $499 / yr",
+    priceLabel: "$99.99 – $499.99 / yr",
     tiers: [
       { name: "Small", desc: "1–5 employees", price: 99.99 },
       { name: "Mid", desc: "6–25 employees", price: 199.99 },
@@ -143,7 +143,7 @@ export default function Join() {
               Become a Founder
             </h1>
             <p style={{ color: "var(--text-muted)", fontSize: "0.88rem", marginBottom: "2rem" }}>
-              Choose your position. Annual membership. Pay once, own your place.
+              Choose your position. Annual membership. Pay once, secure your place.
             </p>
 
             <div style={{ display: "grid", gap: "0.75rem" }}>

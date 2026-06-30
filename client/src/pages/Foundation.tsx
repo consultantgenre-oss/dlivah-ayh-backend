@@ -73,30 +73,8 @@ export default function Foundation() {
           color: "var(--text-muted)",
           fontWeight: 400,
         }}>
-          We are a community of drivers, customers, and businesses united by one
-          purpose: creating real opportunities and making a meaningful difference
-          where we live. Together, we're building practical solutions that support
-          local businesses, strengthen neighborhoods, and especially uplift the
-          hardworking drivers who keep our communities moving every day.
-        </p>
-
-        <p style={{
-          marginTop: "2rem",
-          fontSize: "clamp(1.05rem, 2vw, 1.2rem)",
-          lineHeight: 1.7,
-          fontWeight: 700,
-          letterSpacing: "-0.01em",
-          color: "var(--text-primary)",
-        }}>
-          DLIVAH is more than a platform —{" "}
-          <span style={{
-            background: "linear-gradient(90deg, #22c55e, #a855f7)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-          }}>
-            it's a movement built on people helping people.
-          </span>
+          Drivers, customers, and businesses — operating under one structure.
+          Built in Greater Hartford. Expanding from here.
         </p>
       </div>
     </div>

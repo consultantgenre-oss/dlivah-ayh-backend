@@ -28,7 +28,7 @@ const FOUNDERS = [
     glow: "rgba(168,85,247,0.12)",
     border: "rgba(168,85,247,0.35)",
     price: "$99.99 / yr",
-    hook: "You operate. You earn. You own your position.",
+    hook: "You operate. You earn. You hold your position.",
     why: "DOF status means you're not driving for a platform that takes 30–40% and decides your fate with a rating. You drive as a founder. You operate under a structure built to keep more money in your hands. 90% of every job goes to you. Your membership covers your place in the network — not a subscription to someone else's rules.",
     benefits: [
       "90% revenue per job — you keep what you earn",
@@ -45,7 +45,7 @@ const FOUNDERS = [
     color: "#eab308",
     glow: "rgba(234,179,8,0.12)",
     border: "rgba(234,179,8,0.35)",
-    price: "$99 – $499 / yr",
+    price: "$99.99 – $499.99 / yr",
     hook: "Your business steps out of the conventional logistics system.",
     why: "BP status connects your business to the AYH network as a founding partner. You're not paying per delivery or per ride at rates a platform sets for you. You're in the network at a fixed annual membership that gives your business direct access to the service, early access to new platform features, and preferred API and advertising pricing as the platform grows. The tier you choose reflects your operation — all three tiers step outside conventional business service costs.",
     benefits: [
