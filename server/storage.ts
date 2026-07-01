@@ -3,7 +3,11 @@ import Database from "better-sqlite3";
 import { members, bookings, drivers, earningsLedger, type Member, type InsertMember, type Booking, type InsertBooking, type Driver, type InsertDriver, type LedgerEntry, type InsertLedger } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 
-const sqlite = new Database("data.db");
+// Use Railway persistent volume if available, otherwise fall back to project root
+const DB_PATH = process.env.RAILWAY_VOLUME_MOUNT_PATH
+  ? `${process.env.RAILWAY_VOLUME_MOUNT_PATH}/data.db`
+  : "data.db";
+const sqlite = new Database(DB_PATH);
 export const db = drizzle(sqlite);
 
 // Init tables
@@ -103,6 +107,19 @@ try {
 try {
   sqlite.exec(`ALTER TABLE members ADD COLUMN status TEXT NOT NULL DEFAULT 'pending_payment'`);
 } catch {}
+
+// ── Seed critical settings so they survive every redeploy ─────────────────────
+const seedSettings: Record<string, string> = {
+  driver_pin: process.env.OWNER_PIN || "072616",
+  base_fare: "5.00",
+  rate_per_mile: "1.75",
+};
+for (const [key, value] of Object.entries(seedSettings)) {
+  const existing = sqlite.prepare("SELECT value FROM settings WHERE key = ?").get(key);
+  if (!existing) {
+    sqlite.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run(key, value);
+  }
+}
 
 export interface IStorage {
   // Ledger
