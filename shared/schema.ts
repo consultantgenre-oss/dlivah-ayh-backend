@@ -61,3 +61,24 @@ export const bookings = sqliteTable("bookings", {
 export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true });
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
 export type Booking = typeof bookings.$inferSelect;
+
+// Driver payout ledger — one row per completed job
+export const earningsLedger = sqliteTable("earnings_ledger", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  bookingId: integer("booking_id").notNull(),
+  customerName: text("customer_name").notNull(),
+  pickupAddress: text("pickup_address").notNull(),
+  dropoffAddress: text("dropoff_address").notNull(),
+  bookingType: text("booking_type").notNull(),
+  grossFare: text("gross_fare").notNull(),      // e.g. "18.50" — estimated price from booking
+  platformFee: text("platform_fee").notNull(),  // $2.99 acquisition/maintenance fee
+  driverPayout: text("driver_payout").notNull(),// gross - platform fee (90% revenue)
+  payoutStatus: text("payout_status").notNull().default("pending"), // "pending" | "paid" | "zapier_triggered"
+  completedAt: text("completed_at").notNull(),
+  webhookSentAt: text("webhook_sent_at"),       // ISO timestamp if Zapier webhook was fired
+  stripeTransferId: text("stripe_transfer_id"), // populated if Stripe Connect transfer created
+});
+
+export const insertLedgerSchema = createInsertSchema(earningsLedger).omit({ id: true });
+export type InsertLedger = z.infer<typeof insertLedgerSchema>;
+export type LedgerEntry = typeof earningsLedger.$inferSelect;

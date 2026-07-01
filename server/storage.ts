@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
-import { members, bookings, drivers, type Member, type InsertMember, type Booking, type InsertBooking, type Driver, type InsertDriver } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { members, bookings, drivers, earningsLedger, type Member, type InsertMember, type Booking, type InsertBooking, type Driver, type InsertDriver, type LedgerEntry, type InsertLedger } from "@shared/schema";
+import { eq, desc } from "drizzle-orm";
 
 const sqlite = new Database("data.db");
 export const db = drizzle(sqlite);
@@ -70,6 +70,21 @@ sqlite.exec(`
     estimated_price TEXT,
     created_at TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS earnings_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    booking_id INTEGER NOT NULL,
+    customer_name TEXT NOT NULL,
+    pickup_address TEXT NOT NULL,
+    dropoff_address TEXT NOT NULL,
+    booking_type TEXT NOT NULL,
+    gross_fare TEXT NOT NULL,
+    platform_fee TEXT NOT NULL,
+    driver_payout TEXT NOT NULL,
+    payout_status TEXT NOT NULL DEFAULT 'pending',
+    completed_at TEXT NOT NULL,
+    webhook_sent_at TEXT,
+    stripe_transfer_id TEXT
+  );
 `);
 
 // Migrate existing members table columns if needed
@@ -90,6 +105,12 @@ try {
 } catch {}
 
 export interface IStorage {
+  // Ledger
+  createLedgerEntry(data: InsertLedger): LedgerEntry;
+  getLedgerEntries(): LedgerEntry[];
+  getLedgerSummary(): { totalGross: number; totalPlatformFees: number; totalDriverPayout: number; totalJobs: number; pendingPayout: number };
+  updateLedgerPayoutStatus(id: number, status: string, extra?: { webhookSentAt?: string; stripeTransferId?: string }): void;
+
   // Drivers
   registerDriver(data: InsertDriver): Driver;
   getDriverByEmail(email: string): Driver | undefined;
@@ -111,6 +132,7 @@ export interface IStorage {
   getBookings(): Booking[];
   getBookingById(id: number): Booking | undefined;
   updateBookingStatus(id: number, status: string): Booking | undefined;
+  updateBookingStatusFull(id: number, status: string): { booking: Booking | undefined; wasCompleted: boolean };
 
   // Settings
   getSetting(key: string): string | null;
@@ -127,6 +149,29 @@ export interface IStorage {
 }
 
 export const storage: IStorage = {
+  // ── Ledger ──────────────────────────────────────────────────────────
+  createLedgerEntry(data) {
+    return db.insert(earningsLedger).values(data).returning().get();
+  },
+  getLedgerEntries() {
+    return db.select().from(earningsLedger).orderBy(desc(earningsLedger.completedAt)).all();
+  },
+  getLedgerSummary() {
+    const rows = db.select().from(earningsLedger).all();
+    const totalGross = rows.reduce((s, r) => s + parseFloat(r.grossFare || "0"), 0);
+    const totalPlatformFees = rows.reduce((s, r) => s + parseFloat(r.platformFee || "0"), 0);
+    const totalDriverPayout = rows.reduce((s, r) => s + parseFloat(r.driverPayout || "0"), 0);
+    const pendingPayout = rows.filter(r => r.payoutStatus === "pending").reduce((s, r) => s + parseFloat(r.driverPayout || "0"), 0);
+    return { totalGross, totalPlatformFees, totalDriverPayout, totalJobs: rows.length, pendingPayout };
+  },
+  updateLedgerPayoutStatus(id, status, extra = {}) {
+    const updates: Record<string, string> = { payout_status: status };
+    if (extra.webhookSentAt) updates.webhook_sent_at = extra.webhookSentAt;
+    if (extra.stripeTransferId) updates.stripe_transfer_id = extra.stripeTransferId;
+    const sets = Object.keys(updates).map(k => `${k} = ?`).join(", ");
+    sqlite.prepare(`UPDATE earnings_ledger SET ${sets} WHERE id = ?`).run(...Object.values(updates), id);
+  },
+
   registerDriver(data) {
     return db.insert(drivers).values(data).returning().get();
   },
@@ -179,6 +224,12 @@ export const storage: IStorage = {
   },
   updateBookingStatus(id, status) {
     return db.update(bookings).set({ status }).where(eq(bookings.id, id)).returning().get();
+  },
+  updateBookingStatusFull(id, status) {
+    const prev = db.select().from(bookings).where(eq(bookings.id, id)).get();
+    const wasCompleted = prev?.status !== "completed" && status === "completed";
+    const booking = db.update(bookings).set({ status }).where(eq(bookings.id, id)).returning().get();
+    return { booking, wasCompleted };
   },
   getSetting(key) {
     const row = sqlite.prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;

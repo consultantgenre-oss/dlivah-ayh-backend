@@ -43,11 +43,76 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(booking);
   });
 
-  app.patch("/api/bookings/:id/status", (req, res) => {
+  // ── Constants ─────────────────────────────────────────────────────────
+  const PLATFORM_FEE = 2.99; // per-ride acquisition/maintenance fee
+
+  // ── Fire Zapier webhook (non-blocking) ───────────────────────────────
+  async function fireZapierWebhook(entry: any, zapierUrl: string) {
+    try {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 8000);
+      const resp = await fetch(zapierUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "job_completed",
+          bookingId: entry.bookingId,
+          customerName: entry.customerName,
+          bookingType: entry.bookingType,
+          grossFare: entry.grossFare,
+          platformFee: entry.platformFee,
+          driverPayout: entry.driverPayout,
+          completedAt: entry.completedAt,
+        }),
+        signal: controller.signal,
+      });
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  app.patch("/api/bookings/:id/status", async (req, res) => {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
     const { status } = z.object({ status: z.string() }).parse(req.body);
-    const booking = storage.updateBookingStatus(id, status);
+
+    const { booking, wasCompleted } = storage.updateBookingStatusFull(id, status);
     if (!booking) return res.status(404).json({ error: "Not found" });
+
+    // ── Write ledger entry when a job transitions to 'completed' ────
+    if (wasCompleted) {
+      const rawFare = parseFloat((booking.estimatedPrice || "0").replace(/[^0-9.]/g, ""));
+      const grossFare = rawFare > 0 ? rawFare : 0;
+      const driverPayout = Math.max(0, grossFare - PLATFORM_FEE);
+
+      const entry = storage.createLedgerEntry({
+        bookingId: booking.id,
+        customerName: booking.customerName,
+        pickupAddress: booking.pickupAddress,
+        dropoffAddress: booking.dropoffAddress,
+        bookingType: booking.bookingType,
+        grossFare: grossFare.toFixed(2),
+        platformFee: PLATFORM_FEE.toFixed(2),
+        driverPayout: driverPayout.toFixed(2),
+        payoutStatus: "pending",
+        completedAt: new Date().toISOString(),
+        webhookSentAt: null,
+        stripeTransferId: null,
+      });
+
+      // Fire Zapier webhook if configured
+      const zapierUrl = storage.getSetting("zapier_webhook_url");
+      if (zapierUrl) {
+        const sent = await fireZapierWebhook(entry, zapierUrl);
+        if (sent) {
+          storage.updateLedgerPayoutStatus(entry.id, "zapier_triggered", {
+            webhookSentAt: new Date().toISOString(),
+          });
+        }
+      }
+    }
+
     res.json(booking);
   });
 
@@ -204,6 +269,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/settings", (req, res) => {
     const { key, value } = z.object({ key: z.string(), value: z.string() }).parse(req.body);
     storage.setSetting(key, value);
+    res.json({ ok: true });
+  });
+
+  // ── Earnings Ledger ──────────────────────────────────────────────────
+  app.get("/api/earnings", (_req, res) => {
+    res.json(storage.getLedgerEntries());
+  });
+
+  app.get("/api/earnings/summary", (_req, res) => {
+    res.json(storage.getLedgerSummary());
+  });
+
+  app.patch("/api/earnings/:id/mark-paid", (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    storage.updateLedgerPayoutStatus(id, "paid");
     res.json({ ok: true });
   });
 

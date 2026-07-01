@@ -199,6 +199,19 @@ export default function DriverLogin({ onAuth }: Props) {
             ))}
           </div>
 
+          {/* DLIVAH Real Drivers Video */}
+          <div style={{ width: "100%", borderRadius: "12px", overflow: "hidden", marginBottom: "2.5rem", background: "#000" }}>
+            <video
+              autoPlay
+              muted
+              loop
+              playsInline
+              style={{ width: "100%", display: "block", maxHeight: "420px", objectFit: "cover" }}
+            >
+              <source src="https://dmmcy0pwk6bqi.cloudfront.net/697eee1e84a15d2f3d0c74993aa8fa6826319106" type="video/mp4" />
+            </video>
+          </div>
+
           {/* Bottom CTA */}
           <div style={{ textAlign: "center", paddingBottom: "3rem" }}>
             <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginBottom: "1rem" }}>
