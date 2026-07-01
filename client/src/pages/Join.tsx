@@ -53,6 +53,13 @@ export default function Join() {
   const [memberId, setMemberId] = useState<number | null>(null);
   const [paymentRef, setPaymentRef] = useState("");
 
+  // Capture referral code from URL: /#/join?ref=MEMBERID
+  const referredBy = (() => {
+    const hash = typeof window !== "undefined" ? window.location.hash : "";
+    const qs = hash.includes("?") ? hash.split("?")[1] : "";
+    return new URLSearchParams(qs).get("ref") || null;
+  })();
+
   const [form, setForm] = useState({
     name: "", email: "", phone: "",
     businessName: "", vehicleType: "", licenseNumber: "",
@@ -84,6 +91,7 @@ export default function Join() {
         membershipPrice: String(price),
         paymentStatus: "pending",
         status: "pending_payment",
+        referredBy: referredBy,
         joinedAt: new Date().toISOString(),
       };
       const res = await fetch(`${BACKEND}/api/members`, {

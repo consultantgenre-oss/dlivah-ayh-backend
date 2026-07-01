@@ -149,14 +149,10 @@ const ROLE_COLOR: Record<string, string> = { FOC: "#22c55e", DOF: "#a855f7", BP:
 
 export default function DriverPortal({ authed, onAuth, onLogout }: PortalProps) {
   const { toast } = useToast();
-  const [tab, setTab] = useState<"jobs" | "members" | "earnings">("jobs");
-  const [showZapierSettings, setShowZapierSettings] = useState(false);
-  const [zapierUrl, setZapierUrl] = useState("");
+  const [tab, setTab] = useState<"jobs" | "members">("jobs");
   const [filter, setFilter] = useState<string>("all");
   const [showPaySettings, setShowPaySettings] = useState(false);
   const [payForm, setPayForm] = useState({ cashapp: "", venmo: "", paypal: "" });
-  const [showRateSettings, setShowRateSettings] = useState(false);
-  const [rateForm, setRateForm] = useState({ base_fare: "5.00", rate_per_mile: "1.75" });
   const [activeMsg, setActiveMsg] = useState<Booking | null>(null);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
@@ -201,42 +197,6 @@ export default function DriverPortal({ authed, onAuth, onLogout }: PortalProps) 
     enabled: authed,
   });
 
-  // Earnings ledger
-  interface LedgerEntry {
-    id: number; bookingId: number; customerName: string;
-    pickupAddress: string; dropoffAddress: string; bookingType: string;
-    grossFare: string; platformFee: string; driverPayout: string;
-    payoutStatus: string; completedAt: string;
-    webhookSentAt?: string; stripeTransferId?: string;
-  }
-  interface EarningsSummary {
-    totalGross: number; totalPlatformFees: number; totalDriverPayout: number;
-    totalJobs: number; pendingPayout: number;
-  }
-  const { data: ledger = [], refetch: refetchLedger } = useQuery<LedgerEntry[]>({
-    queryKey: ["/api/earnings"],
-    refetchInterval: authed ? 8000 : false,
-    enabled: authed,
-  });
-  const { data: earningSummary } = useQuery<EarningsSummary>({
-    queryKey: ["/api/earnings/summary"],
-    refetchInterval: authed ? 8000 : false,
-    enabled: authed,
-  });
-  const markPaid = useMutation({
-    mutationFn: async (id: number) => apiRequest("PATCH", `/api/earnings/${id}/mark-paid`, {}),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/earnings"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/earnings/summary"] });
-    },
-  });
-  const saveZapierUrl = async () => {
-    await apiRequest("POST", "/api/settings", { key: "zapier_webhook_url", value: zapierUrl });
-    queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
-    toast({ title: "Zapier webhook saved", description: "Will fire on every completed job." });
-    setShowZapierSettings(false);
-  };
-
   const confirmPayment = useMutation({
     mutationFn: async (id: number) => {
       const res = await fetch(`${BACKEND}/api/members/${id}/confirm-payment`, {
@@ -275,15 +235,6 @@ export default function DriverPortal({ authed, onAuth, onLogout }: PortalProps) 
     ]);
     toast({ title: "Payment settings saved" });
     setShowPaySettings(false);
-  };
-
-  const saveRateSettings = async () => {
-    await Promise.all([
-      saveSetting.mutateAsync({ key: "base_fare", value: rateForm.base_fare }),
-      saveSetting.mutateAsync({ key: "rate_per_mile", value: rateForm.rate_per_mile }),
-    ]);
-    toast({ title: "Rate settings saved" });
-    setShowRateSettings(false);
   };
 
   const filtered = bookings.filter(b => filter === "all" ? true : b.status === filter);
@@ -344,62 +295,12 @@ export default function DriverPortal({ authed, onAuth, onLogout }: PortalProps) 
             <button
               className="btn-outline"
               style={{ fontSize: "0.8rem", padding: "0.4rem 0.9rem", borderColor: "var(--purple)", color: "var(--purple)" }}
-              onClick={() => { setPayForm({ cashapp: settings.cashapp || "", venmo: settings.venmo || "", paypal: settings.paypal || "" }); setShowPaySettings(s => !s); setShowRateSettings(false); }}
+              onClick={() => { setPayForm({ cashapp: settings.cashapp || "", venmo: settings.venmo || "", paypal: settings.paypal || "" }); setShowPaySettings(s => !s); }}
             >
               💳 Payment Settings
             </button>
-            <button
-              className="btn-outline"
-              style={{ fontSize: "0.8rem", padding: "0.4rem 0.9rem", borderColor: "var(--green)", color: "var(--green)" }}
-              onClick={() => { setRateForm({ base_fare: settings.base_fare || "5.00", rate_per_mile: settings.rate_per_mile || "1.75" }); setShowRateSettings(s => !s); setShowPaySettings(false); }}
-            >
-              🚗 Rate Settings
-            </button>
           </div>
         </div>
-
-        {/* Rate Settings Panel */}
-        {showRateSettings && (
-          <div className="card" style={{ marginBottom: "2rem", border: "1px solid rgba(34,197,94,0.3)", boxShadow: "0 0 18px rgba(34,197,94,0.1)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
-              <div>
-                <p style={{ fontWeight: 700, fontSize: "0.95rem" }}>Fare Rate Config</p>
-                <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginTop: "0.2rem" }}>Customers see a live fare estimate when they enter their route.</p>
-              </div>
-              <button onClick={() => setShowRateSettings(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "1.2rem" }}>✕</button>
-            </div>
-            <div style={{ display: "grid", gap: "1rem", marginBottom: "1.25rem" }}>
-              <div>
-                <label style={{ fontSize: "0.82rem" }}>Base Fare ($)</label>
-                <input
-                  className="input-field"
-                  type="number" min="0" step="0.50"
-                  placeholder="5.00"
-                  value={rateForm.base_fare}
-                  onChange={e => setRateForm(f => ({ ...f, base_fare: e.target.value }))}
-                />
-                <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>Minimum fare charged on every booking</p>
-              </div>
-              <div>
-                <label style={{ fontSize: "0.82rem" }}>Per Mile Rate ($)</label>
-                <input
-                  className="input-field"
-                  type="number" min="0" step="0.25"
-                  placeholder="1.75"
-                  value={rateForm.rate_per_mile}
-                  onChange={e => setRateForm(f => ({ ...f, rate_per_mile: e.target.value }))}
-                />
-                <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>Charged per driving mile on top of base fare</p>
-              </div>
-              <div style={{ padding: "0.75rem", background: "var(--surface-3)", borderRadius: "0.5rem", fontSize: "0.82rem", color: "var(--text-muted)" }}>
-                Example: 5 mile ride = <strong style={{ color: "var(--green)" }}>${(parseFloat(rateForm.base_fare || "5") + 5 * parseFloat(rateForm.rate_per_mile || "1.75")).toFixed(2)}</strong>
-              </div>
-            </div>
-            <button className="btn-green" style={{ width: "100%" }} onClick={saveRateSettings} disabled={saveSetting.isPending}>
-              {saveSetting.isPending ? "Saving..." : "Save Rate Settings"}
-            </button>
-          </div>
-        )}
 
         {/* Payment Settings Panel */}
         {showPaySettings && (
@@ -435,25 +336,21 @@ export default function DriverPortal({ authed, onAuth, onLogout }: PortalProps) 
         )}
 
         {/* Tab switcher */}
-        <div style={{ display: "flex", gap: "0.4rem", marginBottom: "2rem", flexWrap: "wrap" }}>
-          {([
-            { id: "jobs", label: "Jobs" },
-            { id: "members", label: `Members${allMembers.filter(m => m.paymentStatus === "pending").length > 0 ? ` (${allMembers.filter(m => m.paymentStatus === "pending").length})` : ""}` },
-            { id: "earnings", label: `Earnings${earningSummary && earningSummary.pendingPayout > 0 ? ` · $${earningSummary.pendingPayout.toFixed(2)}` : ""}` },
-          ] as const).map(t => (
+        <div style={{ display: "flex", gap: "0.4rem", marginBottom: "2rem" }}>
+          {(["jobs", "members"] as const).map(t => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id as any)}
+              key={t}
+              onClick={() => setTab(t)}
               style={{
                 padding: "0.45rem 1.1rem", borderRadius: "0.5rem",
-                border: `1px solid ${tab === t.id ? (t.id === "earnings" ? "var(--green)" : "var(--green)") : "var(--border-color)"}`,
-                background: tab === t.id ? "var(--green-glow)" : "transparent",
-                color: tab === t.id ? "var(--green)" : "var(--text-muted)",
-                fontWeight: tab === t.id ? 700 : 500, fontSize: "0.85rem", cursor: "pointer",
+                border: `1px solid ${tab === t ? "var(--green)" : "var(--border-color)"}`,
+                background: tab === t ? "var(--green-glow)" : "transparent",
+                color: tab === t ? "var(--green)" : "var(--text-muted)",
+                fontWeight: tab === t ? 700 : 500, fontSize: "0.85rem", cursor: "pointer",
                 transition: "all 0.15s",
               }}
             >
-              {t.label}
+              {t === "jobs" ? "Jobs" : `Members ${allMembers.filter(m => m.paymentStatus === "pending").length > 0 ? `(${allMembers.filter(m => m.paymentStatus === "pending").length} pending)` : ""}`}
             </button>
           ))}
         </div>
@@ -534,133 +431,6 @@ export default function DriverPortal({ authed, onAuth, onLogout }: PortalProps) 
                     </div>
                   );
                 })}
-              </div>
-            )}
-          </div>
-        )}
-
-
-        {/* ── EARNINGS TAB ── */}
-        {tab === "earnings" && (
-          <div>
-            {/* Summary KPIs */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginBottom: "1.75rem" }}>
-              {[
-                { label: "Total Jobs", value: earningSummary?.totalJobs ?? 0, fmt: (v: number) => String(v), color: "var(--text)" },
-                { label: "Gross Fares", value: earningSummary?.totalGross ?? 0, fmt: (v: number) => `$${v.toFixed(2)}`, color: "#22c55e" },
-                { label: "Platform Fees", value: earningSummary?.totalPlatformFees ?? 0, fmt: (v: number) => `$${v.toFixed(2)}`, color: "#f59e0b" },
-                { label: "Your Earnings", value: earningSummary?.totalDriverPayout ?? 0, fmt: (v: number) => `$${v.toFixed(2)}`, color: "#22c55e" },
-                { label: "Pending Payout", value: earningSummary?.pendingPayout ?? 0, fmt: (v: number) => `$${v.toFixed(2)}`, color: earningSummary && earningSummary.pendingPayout > 0 ? "#a855f7" : "var(--text-muted)" },
-              ].map(s => (
-                <div key={s.label} className="card" style={{ padding: "1rem", textAlign: "center" }}>
-                  <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.3rem" }}>{s.label}</p>
-                  <p style={{ fontSize: "1.4rem", fontWeight: 800, color: s.color }}>{s.fmt(s.value as number)}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Zapier / Stripe Connect config */}
-            <div style={{ marginBottom: "1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>
-              <div>
-                <p style={{ fontWeight: 700, fontSize: "0.9rem" }}>Payout Webhook</p>
-                <p style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
-                  {settings.zapier_webhook_url ? `✅ Active · ${settings.zapier_webhook_url.substring(0, 40)}...` : "Not configured — connect Zapier or Stripe Connect"}
-                </p>
-              </div>
-              <button
-                className="btn-outline"
-                style={{ fontSize: "0.8rem", padding: "0.4rem 0.9rem", borderColor: "var(--purple)", color: "var(--purple)" }}
-                onClick={() => { setZapierUrl(settings.zapier_webhook_url || ""); setShowZapierSettings(s => !s); }}
-              >
-                ⚡ {settings.zapier_webhook_url ? "Edit Webhook" : "Connect Webhook"}
-              </button>
-            </div>
-
-            {/* Zapier Settings Panel */}
-            {showZapierSettings && (
-              <div className="card" style={{ marginBottom: "1.75rem", border: "1px solid rgba(168,85,247,0.3)", boxShadow: "0 0 16px rgba(168,85,247,0.1)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.25rem" }}>
-                  <div>
-                    <p style={{ fontWeight: 700, fontSize: "0.95rem" }}>Zapier / Stripe Webhook URL</p>
-                    <p style={{ color: "var(--text-muted)", fontSize: "0.78rem", marginTop: "0.25rem", lineHeight: 1.5 }}>
-                      Fires a POST on every completed job with: bookingId, customerName, grossFare, platformFee, driverPayout, completedAt.<br />
-                      In Zapier: Catch Hook trigger → Stripe Connect action → initiate transfer to your bank.
-                    </p>
-                  </div>
-                  <button onClick={() => setShowZapierSettings(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "1.2rem" }}>✕</button>
-                </div>
-                <div style={{ display: "grid", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <input
-                    className="input-field"
-                    placeholder="https://hooks.zapier.com/hooks/catch/..."
-                    value={zapierUrl}
-                    onChange={e => setZapierUrl(e.target.value)}
-                  />
-                  <p style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-                    No Zapier account yet? Leave blank — local ledger tracks everything. Add this later when you connect Stripe.
-                  </p>
-                </div>
-                <button className="btn-purple" style={{ width: "100%" }} onClick={saveZapierUrl}>
-                  Save Webhook URL
-                </button>
-              </div>
-            )}
-
-            {/* Ledger rows */}
-            {ledger.length === 0 ? (
-              <div className="card" style={{ textAlign: "center", padding: "2.5rem", color: "var(--text-muted)" }}>
-                <p style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>💰</p>
-                <p style={{ fontWeight: 600, marginBottom: "0.35rem" }}>No completed jobs yet</p>
-                <p style={{ fontSize: "0.83rem" }}>Mark a job as "Completed" in the Jobs tab — it posts here instantly.</p>
-              </div>
-            ) : (
-              <div style={{ display: "grid", gap: "0.75rem" }}>
-                {ledger.map((entry) => (
-                  <div key={entry.id} className="card" style={{ display: "grid", gap: "0.6rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
-                      <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-                          <span style={{ fontWeight: 700, fontSize: "0.92rem" }}>{entry.customerName}</span>
-                          <span style={{
-                            fontSize: "0.65rem", fontWeight: 700, padding: "0.15rem 0.45rem",
-                            borderRadius: "0.3rem", textTransform: "uppercase" as const, letterSpacing: "0.06em",
-                            background: entry.payoutStatus === "paid" ? "rgba(34,197,94,0.15)" : entry.payoutStatus === "zapier_triggered" ? "rgba(168,85,247,0.15)" : "rgba(245,158,11,0.15)",
-                            color: entry.payoutStatus === "paid" ? "#22c55e" : entry.payoutStatus === "zapier_triggered" ? "#a855f7" : "#f59e0b",
-                          }}>
-                            {entry.payoutStatus === "zapier_triggered" ? "⚡ Webhook Sent" : entry.payoutStatus}
-                          </span>
-                        </div>
-                        <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>
-                          ↑ {entry.pickupAddress.split(",")[0]} → {entry.dropoffAddress.split(",")[0]}
-                        </p>
-                        <p style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-                          {new Date(entry.completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                        </p>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <p style={{ fontSize: "1.6rem", fontWeight: 900, color: "var(--green)", lineHeight: 1 }}>${parseFloat(entry.driverPayout).toFixed(2)}</p>
-                        <p style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>of ${parseFloat(entry.grossFare).toFixed(2)} gross</p>
-                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>$2.99 platform fee</p>
-                      </div>
-                    </div>
-                    {entry.payoutStatus === "pending" && (
-                      <button
-                        className="btn-outline"
-                        style={{ fontSize: "0.78rem", padding: "0.3rem 0.75rem", alignSelf: "flex-start", borderColor: "var(--green)", color: "var(--green)" }}
-                        onClick={() => markPaid.mutate(entry.id)}
-                        disabled={markPaid.isPending}
-                      >
-                        ✓ Mark Paid
-                      </button>
-                    )}
-                    {entry.webhookSentAt && (
-                      <p style={{ fontSize: "0.68rem", color: "var(--purple)", borderTop: "1px solid var(--border-color)", paddingTop: "0.4rem" }}>
-                        ⚡ Webhook sent {new Date(entry.webhookSentAt).toLocaleTimeString()}
-                        {entry.stripeTransferId && ` · Stripe: ${entry.stripeTransferId}`}
-                      </p>
-                    )}
-                  </div>
-                ))}
               </div>
             )}
           </div>
@@ -756,12 +526,6 @@ export default function DriverPortal({ authed, onAuth, onLogout }: PortalProps) 
                       <p style={{ fontWeight: 700, fontSize: "0.9rem" }}>{b.scheduledDate}</p>
                       <p style={{ color: "var(--text-muted)", fontSize: "0.83rem" }}>{b.scheduledTime}</p>
                     </div>
-                    {b.estimatedPrice && (
-                      <div style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: "0.4rem", padding: "0.3rem 0.6rem" }}>
-                        <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginBottom: "0.1rem" }}>Est. Fare</p>
-                        <p style={{ fontWeight: 800, fontSize: "1rem", color: "var(--green)", lineHeight: 1 }}>{b.estimatedPrice}</p>
-                      </div>
-                    )}
 
                     {/* Message button */}
                     <button

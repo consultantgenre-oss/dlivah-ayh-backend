@@ -165,6 +165,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ success: true });
   });
 
+  // ── Referrals ─────────────────────────────────────────────────────────
+  app.get("/api/members/:id/referrals", (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+    const referrals = storage.getReferrals(id);
+    const count = referrals.length;
+    // Referral credit per role (from the referral program rules)
+    const member = storage.getMemberById(id);
+    const creditMap: Record<string, number> = { FOC: 10, DOF: 0, BP: 10 }; // DOF gets month extension not credit
+    const creditPerReferral = member ? (creditMap[member.role] ?? 10) : 10;
+    const totalCredits = count * creditPerReferral;
+    res.json({
+      count,
+      totalCredits,
+      creditPerReferral,
+      referrals: referrals.map(r => ({
+        id: r.id,
+        name: r.name,
+        role: r.role,
+        paymentStatus: r.paymentStatus,
+        joinedAt: r.joinedAt,
+      })),
+    });
+  });
+
   // ── Driver Accounts ────────────────────────────────────────────────────
   app.post("/api/drivers/register", (req, res) => {
     const schema = z.object({

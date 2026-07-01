@@ -34,6 +34,7 @@ export const members = sqliteTable("members", {
   paymentStatus: text("payment_status").notNull().default("pending"), // "pending" | "paid"
   paymentRef: text("payment_ref"), // e.g. CashApp transaction ID they send
   status: text("status").notNull().default("pending_payment"), // "pending_payment" | "active"
+  referredBy: text("referred_by"), // member ID of the person who referred them
   joinedAt: text("joined_at").notNull(),
 });
 
@@ -55,7 +56,7 @@ export const bookings = sqliteTable("bookings", {
   notes: text("notes"),
   status: text("status").notNull().default("pending"),
   estimatedPrice: text("estimated_price"),
-  createdAt: text("created_at").notNull(),
+  createdAt: text("created_at").notNull()
 });
 
 export const insertBookingSchema = createInsertSchema(bookings).omit({ id: true });

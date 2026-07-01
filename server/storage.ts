@@ -107,6 +107,9 @@ try {
 try {
   sqlite.exec(`ALTER TABLE members ADD COLUMN status TEXT NOT NULL DEFAULT 'pending_payment'`);
 } catch {}
+try {
+  sqlite.exec(`ALTER TABLE members ADD COLUMN referred_by TEXT`);
+} catch {}
 
 // ── Seed critical settings so they survive every redeploy ─────────────────────
 const seedSettings: Record<string, string> = {
@@ -143,6 +146,8 @@ export interface IStorage {
   getMembersPendingPayment(): Member[];
   confirmPayment(id: number, paymentRef?: string): Member | undefined;
   deleteMember(id: number): boolean;
+  getReferralCount(memberId: number): number;
+  getReferrals(memberId: number): Member[];
 
   // Bookings
   createBooking(data: InsertBooking): Booking;
@@ -229,6 +234,13 @@ export const storage: IStorage = {
   deleteMember(id) {
     const result = db.delete(members).where(eq(members.id, id)).run();
     return result.changes > 0;
+  },
+  getReferralCount(memberId) {
+    const row = sqlite.prepare("SELECT COUNT(*) as count FROM members WHERE referred_by = ?").get(String(memberId)) as { count: number };
+    return row?.count ?? 0;
+  },
+  getReferrals(memberId) {
+    return db.select().from(members).all().filter(m => m.referredBy === String(memberId));
   },
   createBooking(data) {
     return db.insert(bookings).values(data).returning().get();

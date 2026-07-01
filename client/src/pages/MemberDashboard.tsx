@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Nav from "@/components/Nav";
 import { useQuery } from "@tanstack/react-query";
+import QRCode from "qrcode";
 import type { Member } from "@shared/schema";
 
 const BACKEND = "https://backend-production-507b.up.railway.app";
@@ -41,11 +42,18 @@ function useParam(name: string): string {
   return match ? match[1] : "";
 }
 
+interface ReferralData {
+  count: number;
+  referrals: { id: number; name: string; role: string; paymentStatus: string; joinedAt: string }[];
+}
+
 export default function MemberDashboard() {
   const rawId = useParam("member");
   const memberId = parseInt(rawId);
   const [lookupId, setLookupId] = useState("");
   const [searched, setSearched] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const { data: member, isLoading, error } = useQuery<Member>({
     queryKey: [`/api/members/${memberId}`],
@@ -74,6 +82,32 @@ export default function MemberDashboard() {
   const meta = display ? ROLE_META[display.role] ?? ROLE_META.FOC : null;
   const isPaid = display?.paymentStatus === "paid";
   const isActive = display?.status === "active";
+
+  const displayId = display?.id;
+  const { data: referralData } = useQuery<ReferralData>({
+    queryKey: ["/api/members", displayId, "referrals"],
+    enabled: !!displayId && isPaid,
+    queryFn: () => fetch(`${BACKEND}/api/members/${displayId}/referrals`).then(r => r.json()),
+  });
+
+  const referralLink = display ? `https://dlivah.live/#/join?ref=${display.id}` : "";
+
+  useEffect(() => {
+    if (qrCanvasRef.current && referralLink) {
+      QRCode.toCanvas(qrCanvasRef.current, referralLink, {
+        width: 180,
+        margin: 2,
+        color: { dark: "#000000", light: "#ffffff" },
+      });
+    }
+  }, [referralLink]);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(referralLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   // No ID in URL — show lookup form
   if (isNaN(memberId) && !searched) {
@@ -236,6 +270,111 @@ export default function MemberDashboard() {
                 <p style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>Renew annually with your membership</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Referral Section */}
+        {isPaid && (
+          <div className="card" style={{ marginBottom: "1.25rem", border: `1px solid ${meta!.border}` }}>
+            <p style={{ fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-muted)", marginBottom: "1rem" }}>
+              Your Referral Link
+            </p>
+
+            {/* Stats row */}
+            <div style={{ display: "flex", gap: "1rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
+              <div style={{
+                flex: 1, minWidth: "120px",
+                background: `${meta!.color}12`, border: `1px solid ${meta!.border}`,
+                borderRadius: "0.75rem", padding: "0.85rem 1rem",
+              }}>
+                <p style={{ fontSize: "1.8rem", fontWeight: 900, color: meta!.color, lineHeight: 1 }}>
+                  {referralData?.count ?? 0}
+                </p>
+                <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>Confirmed referrals</p>
+              </div>
+              <div style={{
+                flex: 1, minWidth: "120px",
+                background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
+                borderRadius: "0.75rem", padding: "0.85rem 1rem",
+              }}>
+                <p style={{ fontSize: "1.8rem", fontWeight: 900, lineHeight: 1 }}>
+                  {display.role === "BP" && display.tier === "Mid"
+                    ? `$${(referralData?.count ?? 0) * 20}`
+                    : display.role === "BP" && display.tier === "Large"
+                    ? `$${(referralData?.count ?? 0) * 50}`
+                    : display.role === "DOF"
+                    ? `${referralData?.count ?? 0} mo`
+                    : `$${(referralData?.count ?? 0) * 10}`}
+                </p>
+                <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                  {display.role === "DOF" ? "Extension earned" : "Credit earned"}
+                </p>
+              </div>
+            </div>
+
+            {/* QR code */}
+            <div style={{ display: "flex", gap: "1.5rem", alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div style={{
+                background: "#ffffff", borderRadius: "0.6rem",
+                padding: "0.5rem", display: "inline-block", flexShrink: 0,
+              }}>
+                <canvas ref={qrCanvasRef} style={{ display: "block" }} />
+              </div>
+              <div style={{ flex: 1, minWidth: "180px" }}>
+                <p style={{ fontWeight: 700, fontSize: "0.88rem", marginBottom: "0.5rem" }}>Share your link</p>
+                <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.85rem", lineHeight: 1.5 }}>
+                  When someone joins using your referral link, you earn credit automatically.
+                </p>
+                <div style={{
+                  background: "rgba(255,255,255,0.04)", border: "1px solid var(--border)",
+                  borderRadius: "0.5rem", padding: "0.5rem 0.75rem",
+                  fontSize: "0.75rem", fontFamily: "monospace",
+                  color: "var(--text-muted)", wordBreak: "break-all", marginBottom: "0.6rem",
+                }}>
+                  {referralLink}
+                </div>
+                <button
+                  onClick={handleCopy}
+                  style={{
+                    background: copied ? "rgba(34,197,94,0.15)" : `${meta!.color}20`,
+                    border: `1px solid ${copied ? "rgba(34,197,94,0.4)" : meta!.border}`,
+                    color: copied ? "#22c55e" : meta!.color,
+                    borderRadius: "0.5rem", padding: "0.45rem 1rem",
+                    fontSize: "0.82rem", fontWeight: 700, cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {copied ? "✓ Copied!" : "Copy Link"}
+                </button>
+              </div>
+            </div>
+
+            {/* Recent referrals list */}
+            {referralData && referralData.referrals.length > 0 && (
+              <div style={{ marginTop: "1.25rem", borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
+                <p style={{ fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-muted)", marginBottom: "0.6rem" }}>
+                  Recent Referrals
+                </p>
+                <div style={{ display: "grid", gap: "0.4rem" }}>
+                  {referralData.referrals.slice(0, 5).map(r => (
+                    <div key={r.id} style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      fontSize: "0.82rem", padding: "0.35rem 0",
+                    }}>
+                      <span>{r.name} <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>· {r.role}</span></span>
+                      <span style={{
+                        fontSize: "0.72rem", fontWeight: 700, padding: "0.1rem 0.5rem",
+                        borderRadius: "999px",
+                        background: r.paymentStatus === "paid" ? "rgba(34,197,94,0.15)" : "rgba(245,158,11,0.15)",
+                        color: r.paymentStatus === "paid" ? "#22c55e" : "#f59e0b",
+                      }}>
+                        {r.paymentStatus === "paid" ? "Confirmed" : "Pending"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
