@@ -15,8 +15,19 @@ import MemberDashboard from "@/pages/MemberDashboard";
 import NotFound from "@/pages/not-found";
 
 function App() {
-  // Auth state lives here so it survives route changes
+  // Auth state — driverId=null means owner (PIN auth), driverId=number means a registered partial driver
   const [driverAuthed, setDriverAuthed] = useState(false);
+  const [authedDriverId, setAuthedDriverId] = useState<number | null>(null);
+
+  const handleAuth = (driverId?: number) => {
+    setDriverAuthed(true);
+    setAuthedDriverId(driverId ?? null); // null = owner/PIN, number = partial driver
+  };
+
+  const handleLogout = () => {
+    setDriverAuthed(false);
+    setAuthedDriverId(null);
+  };
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -27,7 +38,7 @@ function App() {
           <Route path="/join" component={Join} />
           <Route path="/pricing" component={Pricing} />
           <Route path="/driver">
-            {() => <DriverPortal authed={driverAuthed} onAuth={() => setDriverAuthed(true)} onLogout={() => setDriverAuthed(false)} />}
+            {() => <DriverPortal authed={driverAuthed} driverId={authedDriverId} onAuth={handleAuth} onLogout={handleLogout} />}
           </Route>
           <Route path="/foundation" component={Foundation} />
           <Route path="/messages/:id" component={CustomerThread} />

@@ -5,6 +5,7 @@ import Nav from "@/components/Nav";
 import { useToast } from "@/hooks/use-toast";
 import DriverProfileEditor from "@/components/DriverProfileEditor";
 import DriverLogin from "@/components/DriverLogin";
+import PartialDriverView from "@/components/PartialDriverView";
 import type { Booking } from "@shared/schema";
 
 const BACKEND = "https://backend-production-507b.up.railway.app";
@@ -142,14 +143,17 @@ function MessageThread({ booking, onClose }: { booking: Booking; onClose: () => 
   );
 }
 
-type PortalProps = { authed: boolean; onAuth: () => void; onLogout: () => void };
+type PortalProps = { authed: boolean; driverId: number | null; onAuth: (id?: number) => void; onLogout: () => void };
 type Member = { id: number; name: string; email: string; phone: string; role: string; tier?: string | null; businessName?: string | null; membershipPrice: string; paymentStatus: string; paymentRef?: string | null; status: string; joinedAt: string };
 
 const ROLE_COLOR: Record<string, string> = { FOC: "#22c55e", DOF: "#a855f7", BP: "#eab308" };
 
-export default function DriverPortal({ authed, onAuth, onLogout }: PortalProps) {
+export default function DriverPortal({ authed, driverId, onAuth, onLogout }: PortalProps) {
+  // driverId === null means owner/PIN auth (full dashboard)
+  // driverId === number means partial/registered driver (limited wallet view)
+  const isOwner = driverId === null;
   const { toast } = useToast();
-  const [tab, setTab] = useState<"jobs" | "members">("jobs");
+  const [tab, setTab] = useState<"jobs" | "members" | "drivers">("jobs");
   const [filter, setFilter] = useState<string>("all");
   const [showPaySettings, setShowPaySettings] = useState(false);
   const [payForm, setPayForm] = useState({ cashapp: "", venmo: "", paypal: "" });
@@ -197,6 +201,29 @@ export default function DriverPortal({ authed, onAuth, onLogout }: PortalProps) 
     enabled: authed,
   });
 
+  type DriverRecord = { id: number; name: string; email: string; phone: string; vehicleType: string; licenseNumber: string; status: string; joinedAt: string };
+  const { data: allDrivers = [] } = useQuery<DriverRecord[]>({
+    queryKey: ["/api/drivers"],
+    queryFn: () => fetch(`${BACKEND}/api/drivers`).then(r => r.json()),
+    refetchInterval: authed ? 15000 : false,
+    enabled: authed,
+  });
+
+  const approveDriver = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`${BACKEND}/api/drivers/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "active" }),
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/drivers"] });
+      toast({ title: "Driver activated" });
+    },
+  });
+
   const confirmPayment = useMutation({
     mutationFn: async (id: number) => {
       const res = await fetch(`${BACKEND}/api/members/${id}/confirm-payment`, {
@@ -226,6 +253,9 @@ export default function DriverPortal({ authed, onAuth, onLogout }: PortalProps) 
 
   // Auth gate — all hooks declared above, safe to early-return here
   if (!authed) return <DriverLogin onAuth={onAuth} />;
+
+  // ── PARTIAL DRIVER VIEW ───────────────────────────────────────────────
+  if (!isOwner) return <PartialDriverView driverId={driverId!} onLogout={onLogout} />;
 
   const savePaySettings = async () => {
     await Promise.all([
@@ -336,8 +366,8 @@ export default function DriverPortal({ authed, onAuth, onLogout }: PortalProps) 
         )}
 
         {/* Tab switcher */}
-        <div style={{ display: "flex", gap: "0.4rem", marginBottom: "2rem" }}>
-          {(["jobs", "members"] as const).map(t => (
+        <div style={{ display: "flex", gap: "0.4rem", marginBottom: "2rem", flexWrap: "wrap" }}>
+          {(["jobs", "members", "drivers"] as const).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -350,7 +380,9 @@ export default function DriverPortal({ authed, onAuth, onLogout }: PortalProps) 
                 transition: "all 0.15s",
               }}
             >
-              {t === "jobs" ? "Jobs" : `Members ${allMembers.filter(m => m.paymentStatus === "pending").length > 0 ? `(${allMembers.filter(m => m.paymentStatus === "pending").length} pending)` : ""}`}
+              {t === "jobs" ? "Jobs"
+                : t === "members" ? `Members${allMembers.filter(m => m.paymentStatus === "pending").length > 0 ? ` (${allMembers.filter(m => m.paymentStatus === "pending").length} pending)` : ""}`
+                : `Drivers${allDrivers.filter(d => d.status === "pending").length > 0 ? ` (${allDrivers.filter(d => d.status === "pending").length} pending)` : ""}`}
             </button>
           ))}
         </div>
@@ -426,6 +458,76 @@ export default function DriverPortal({ authed, onAuth, onLogout }: PortalProps) 
                             href={`/#/member/${m.id}`}
                             style={{ fontSize: "0.75rem", color: "var(--text-muted)", textDecoration: "underline" }}
                           >View Dashboard</a>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── DRIVERS TAB ── */}
+        {tab === "drivers" && (
+          <div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.75rem", marginBottom: "1.75rem" }}>
+              {[
+                { label: "Total", value: allDrivers.length, color: "var(--text-primary)" },
+                { label: "Active", value: allDrivers.filter(d => d.status === "active").length, color: "var(--green)" },
+                { label: "Pending", value: allDrivers.filter(d => d.status === "pending").length, color: "#f59e0b" },
+              ].map(s => (
+                <div key={s.label} className="card" style={{ textAlign: "center" }}>
+                  <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.25rem" }}>{s.label}</p>
+                  <p style={{ fontSize: "1.6rem", fontWeight: 800, color: s.color }}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+            {allDrivers.length === 0 ? (
+              <div className="card" style={{ textAlign: "center", padding: "3rem" }}>
+                <p style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>🚗</p>
+                <p style={{ color: "var(--text-muted)" }}>No drivers registered yet.</p>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: "0.75rem" }}>
+                {[...allDrivers].reverse().map(d => {
+                  const isActive = d.status === "active";
+                  return (
+                    <div key={d.id} className="card" style={{
+                      borderColor: !isActive ? "rgba(245,158,11,0.35)" : "var(--border-color)",
+                      background: !isActive ? "rgba(245,158,11,0.03)" : "var(--surface-2)",
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem" }}>
+                        <div style={{ flex: 1, minWidth: "200px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.4rem" }}>
+                            <span style={{ fontWeight: 800, fontSize: "0.88rem", color: "var(--purple)" }}>DOF</span>
+                            <span style={{
+                              fontSize: "0.7rem", padding: "0.1rem 0.45rem", borderRadius: "999px", fontWeight: 700,
+                              background: isActive ? "rgba(34,197,94,0.15)" : "rgba(245,158,11,0.15)",
+                              color: isActive ? "#22c55e" : "#f59e0b",
+                            }}>{isActive ? "Active" : "Pending"}</span>
+                          </div>
+                          <p style={{ fontWeight: 700, fontSize: "0.95rem" }}>{d.name}</p>
+                          <p style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{d.email} · {d.phone}</p>
+                          <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginTop: "0.2rem" }}>
+                            {d.vehicleType} · License: {d.licenseNumber}
+                          </p>
+                          <p style={{ color: "var(--text-muted)", fontSize: "0.75rem", marginTop: "0.2rem" }}>
+                            Registered: {new Date(d.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </p>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.5rem" }}>
+                          <p style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>#{d.id}</p>
+                          {!isActive && (
+                            <button
+                              className="btn-green"
+                              style={{ fontSize: "0.8rem", padding: "0.4rem 0.9rem", opacity: approveDriver.isPending ? 0.5 : 1 }}
+                              disabled={approveDriver.isPending}
+                              onClick={() => approveDriver.mutate(d.id)}
+                            >
+                              ✓ Activate Driver
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

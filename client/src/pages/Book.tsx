@@ -344,6 +344,28 @@ export default function Book() {
                   <textarea id="notes2" className="input-field" placeholder="Anything the driver should know..." rows={2} value={form.notes} onChange={e => set("notes", e.target.value)} style={{ resize: "vertical" }} data-testid="input-notes2" />
                 </div>
               )}
+              {/* Infrastructure Fee Breakdown */}
+              <div className="card" style={{ border: "1px solid rgba(99,102,241,0.2)", background: "rgba(99,102,241,0.03)" }}>
+                <p className="section-label" style={{ marginBottom: "0.75rem" }}>Infrastructure Fee</p>
+                <div style={{ display: "grid", gap: "0.45rem", marginBottom: "0.7rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "0.84rem", color: "var(--text-muted)" }}>Maintenance Fee</span>
+                    <span style={{ fontSize: "0.88rem", fontWeight: 600 }}>$1.59</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "0.84rem", color: "var(--text-muted)" }}>Acquisition Fee</span>
+                    <span style={{ fontSize: "0.88rem", fontWeight: 600 }}>$1.40</span>
+                  </div>
+                  <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "0.45rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "0.88rem", fontWeight: 700 }}>Total Infrastructure Fee</span>
+                    <span style={{ fontSize: "0.95rem", fontWeight: 800 }}>$2.99</span>
+                  </div>
+                </div>
+                <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.55, fontStyle: "italic" }}>
+                  We are not trying to be cheaper — we are trying to be fair to everyone involved.
+                </p>
+              </div>
+
               <div className="card" style={{ background: "var(--surface-3)" }}>
                 <p className="section-label" style={{ marginBottom: "0.75rem" }}>Booking Summary</p>
                 <div style={{ display: "grid", gap: "0.5rem" }}>
