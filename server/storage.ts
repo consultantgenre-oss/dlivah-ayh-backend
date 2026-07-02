@@ -110,6 +110,13 @@ try {
 try {
   sqlite.exec(`ALTER TABLE members ADD COLUMN referred_by TEXT`);
 } catch {}
+// ── Ledger fee split migrations ─────────────────────────────────────────────────────
+try {
+  sqlite.exec(`ALTER TABLE earnings_ledger ADD COLUMN maintenance_fee TEXT NOT NULL DEFAULT '1.59'`);
+} catch {}
+try {
+  sqlite.exec(`ALTER TABLE earnings_ledger ADD COLUMN acquisition_fee TEXT NOT NULL DEFAULT '1.40'`);
+} catch {}
 
 // ── Seed critical settings so they survive every redeploy ─────────────────────
 const seedSettings: Record<string, string> = {

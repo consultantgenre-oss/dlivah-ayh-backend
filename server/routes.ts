@@ -44,7 +44,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ── Constants ─────────────────────────────────────────────────────────
-  const PLATFORM_FEE = 2.99; // per-ride acquisition/maintenance fee
+  const MAINTENANCE_FEE = 1.59;   // infrastructure maintenance
+  const ACQUISITION_FEE = 1.40;  // driver acquisition / platform access
+  const PLATFORM_FEE = MAINTENANCE_FEE + ACQUISITION_FEE; // $2.99 total
 
   // ── Fire Zapier webhook (non-blocking) ───────────────────────────────
   async function fireZapierWebhook(entry: any, zapierUrl: string) {
@@ -93,6 +95,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         dropoffAddress: booking.dropoffAddress,
         bookingType: booking.bookingType,
         grossFare: grossFare.toFixed(2),
+        maintenanceFee: MAINTENANCE_FEE.toFixed(2),
+        acquisitionFee: ACQUISITION_FEE.toFixed(2),
         platformFee: PLATFORM_FEE.toFixed(2),
         driverPayout: driverPayout.toFixed(2),
         payoutStatus: "pending",

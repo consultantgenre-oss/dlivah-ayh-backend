@@ -71,9 +71,11 @@ export const earningsLedger = sqliteTable("earnings_ledger", {
   pickupAddress: text("pickup_address").notNull(),
   dropoffAddress: text("dropoff_address").notNull(),
   bookingType: text("booking_type").notNull(),
-  grossFare: text("gross_fare").notNull(),      // e.g. "18.50" — estimated price from booking
-  platformFee: text("platform_fee").notNull(),  // $2.99 acquisition/maintenance fee
-  driverPayout: text("driver_payout").notNull(),// gross - platform fee (90% revenue)
+  grossFare: text("gross_fare").notNull(),           // e.g. "18.50" — estimated price from booking
+  maintenanceFee: text("maintenance_fee").notNull(), // $1.59 infrastructure maintenance
+  acquisitionFee: text("acquisition_fee").notNull(), // $1.40 driver acquisition / platform access
+  platformFee: text("platform_fee").notNull(),       // $2.99 total (maintenance + acquisition)
+  driverPayout: text("driver_payout").notNull(),     // gross - platform fee
   payoutStatus: text("payout_status").notNull().default("pending"), // "pending" | "paid" | "zapier_triggered"
   completedAt: text("completed_at").notNull(),
   webhookSentAt: text("webhook_sent_at"),       // ISO timestamp if Zapier webhook was fired
